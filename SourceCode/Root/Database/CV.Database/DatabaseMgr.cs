@@ -122,6 +122,27 @@ namespace CV.Database
                     , ConfigurationMgr.GetConnectionString(connectionKey));
         }
 
+        /// <summary>
+        /// If an object is DBNull will return default, otherwise returns the object casted to type T.
+        /// </summary>
+        /// <param name="dbValue"></param>
+        /// <param name="defaultVal"></param>
+        /// <returns></returns>
+        public T GetValueOrDefault<T>(object dbValue, T defaultVal)
+        {
+            return GetValueOrDefault_<T>(dbValue, defaultVal);
+        }
+
+        /// <summary>
+        /// If an object is DBNull will return default, otherwise returns the object casted to type T.
+        /// </summary>
+        /// <param name="dbValue"></param>
+        /// <param name="defaultVal"></param>
+        /// <returns></returns>
+        public static T GetValueOrDefault_<T>(object dbValue, T defaultVal)
+        {
+            return dbValue != DBNull.Value && dbValue is T ? (T)dbValue : defaultVal;
+        }
         #region DbParameters
 
         /// <summary>
@@ -345,7 +366,7 @@ namespace CV.Database
         /// <param name="selectColumns">Columns to include in a select, if this will be used for a select.
         /// If non are included, all will be returned for a select.</param>
         /// <returns>Meta Data structure (with empty collection structures) to be used for building dynamic sql></returns>
-        public DmlMgr DbCatalogGetTableDmlMgr(string schemaName, string tableName, params object[] selectColumns)
+        public DmlMgr DbCatalogGetDmlMgr(string schemaName, string tableName, params object[] selectColumns)
         {
             DbTable tableStructure = _dbCatalogMgr.GetDbTable(schemaName, tableName);
 
@@ -360,12 +381,38 @@ namespace CV.Database
         /// <param name="selectColumns">Columns to include in a select, if this will be used for a select.
         /// If non are included, all will be returned for a select.</param>
         /// <returns>Meta Data structure (with empty collection structures) to be used for building dynamic sql></returns>
-        public DmlMgr DbCatalogGetTableDmlMgr(string fullyQualifiedTableName, params object[] selectColumns)
+        public DmlMgr DbCatalogGetDmlMgr(string fullyQualifiedTableName, params object[] selectColumns)
         {
             DbTable tableStructure = _dbCatalogMgr.GetDbTable(fullyQualifiedTableName);
 
             return new DmlMgr(this, tableStructure, selectColumns);
         }
+
+
+        /// <summary>
+        /// Determines if the given database table exists.
+        /// </summary>
+        /// <param name="SchemaName"></param>
+        /// <param name="TableName"></param>
+        /// <returns>bool indicating if give table exists</returns>
+        public bool TableExists(string SchemaName, string TableName)
+        {
+            return _dbCatalogMgr.TableExists(SchemaName, TableName);
+        }
+
+        // Reloads Cache MetaData for the give table
+        public void RefreshCache(string SchemaName, string TableName)
+        {
+            _dbCatalogMgr.RefreshCache(SchemaName, TableName);
+        }
+
+        // Reloads Cache MetaData for the give table names
+        public void RefreshCache(List<string> FullyQualifiedTableNames)
+        {
+            foreach (string tableName in FullyQualifiedTableNames)
+                _dbCatalogMgr.RefreshCache(tableName);
+        }
+
 
         #endregion
 

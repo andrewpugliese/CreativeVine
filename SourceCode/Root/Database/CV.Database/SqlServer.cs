@@ -7,14 +7,13 @@ using System.Data.Common;
 using System.Data;
 using System.Xml;
 
-using CV.Global;
-using SqlServer = CV.Database.Provider.Microsoft;
+using ThomsonReuters.Global;
 
-namespace CV.Database
+namespace ThomsonReuters.Database.Provider.Microsoft
 {
-    public class SqlServerProvider : DatabaseProviderBase
+    public class SqlServer : DatabaseProvider
     {
-        public SqlServerProvider(string connectionString)
+        public SqlServer(string connectionString)
             : base(connectionString) { }
 
         public override void VerifyConnectionString()
@@ -29,17 +28,6 @@ namespace CV.Database
                 _dbTypeName = DatabaseTypeName.SqlServer;
                 conn.Close();
             }
-       }
-
-
-        SqlCommand CastDbCommand(DbCommand dbCmd)
-        {
-            SqlCommand sqlCmd = dbCmd as SqlCommand;
-            if (sqlCmd == null)
-                throw new ExceptionMgr(this.ToString(), new ArgumentOutOfRangeException(
-                    string.Format("Invalided SqlCommand Object; could not be cast: {0}"
-                    , dbCmd.ToString())));
-            return sqlCmd;
         }
 
         /// <summary>
@@ -54,54 +42,7 @@ namespace CV.Database
             rowCount.AppendFormat("set {0} = @@rowcount {1};", rowCountParam, Environment.NewLine);
             return rowCount.ToString();
         }
-        /// <summary>
-        /// Function takes any select statement and will turn it into a select statement
-        /// that will return only the number of rows defined by parameter BufferSize.
-        /// <para>
-        /// If BufferSize is a string, then it will be assumed be a bind variable.
-        /// If it is an Int, then the constant will be used.
-        /// </para>
-        /// <para>
-        /// NOTE: If for some executions you want a full result set without rewriting query
-        ///         set BufferSize Param Value = 0;
-        ///         Value CANNOT BE SET TO NULL
-        ///</para>
-        /// <para>
-        /// DB2 USERS: In order to implement a dynamic buffer size, the row_number() function was applied
-        /// however, this column would then be returned in the result set as (row_num);  
-        /// </para>
-        /// <para>
-        /// This function
-        /// will attempt to remove it from the statement.  In order to do this, we require a unique set
-        /// a column names so if there are joins with the same column then they must be uniquely aliased.
-        /// </para>
-        /// </summary>
-        /// <param name="selectStatement">A valid SQL select statement with UNIQUE column names</param>
-        /// <param name="bufferSize">Limits the number of rows returned.  If the param is a constant number
-        /// , then it will be a fixed number of records returned each time.  
-        /// <para>If the param is a string
-        /// , then a parameter will be created with the name equal to the string provided.  This
-        /// can be used to change the buffer size for each execution of the dbCommand.
-        /// </para>
-        /// <para>Null indicates all rows are returned.
-        /// </para>
-        /// </param>
-        /// <returns>Select statement with max rows</returns>
-        public override string FormatSQLSelectWithMaxRows(string selectStatement, object bufferSize)
-        {
-            if (bufferSize == null
-                || bufferSize.ToString() == string.Empty)
-                return selectStatement;
 
-            if (!(bufferSize is string || bufferSize is int))
-                throw new ExceptionMgr(this.ToString()
-                            , new ArgumentNullException(string.Format("Must be non null string or int data type only: BufferSize:{0}", bufferSize)));
-
-            return string.Format("set rowcount {0}{2}{1}{2}"
-                , bufferSize is string ? BuildBindVariableName(bufferSize.ToString()) : bufferSize.ToString()
-                            , selectStatement
-                            , Environment.NewLine);
-        }
 
         /// <summary>
         /// Returns the SqlServer compliant sql fragment for performing Date Arithametic.
@@ -117,9 +58,9 @@ namespace CV.Database
                 , object startDate)
         {
             // is the startDate one of the default parameters
-            string startDateParam = GetDbTimeAs(DateTimeKind.Unspecified, null);
+            string startDateParam = FormatServerTimeCommandText(DateTimeKind.Unspecified, null);
             if (startDate is DateTimeKind)
-                startDateParam = GetDbTimeAs((DateTimeKind)startDate, null);
+                startDateParam = FormatServerTimeCommandText((DateTimeKind)startDate, null);
             if (startDate is string)    // columnName
                 startDateParam = startDate.ToString();
 
@@ -134,6 +75,35 @@ namespace CV.Database
             return string.Format("DateAdd({0}, {1}, {2})", dateDiffInterval.ToString(), durationParam, startDateParam);
         }
 
+
+        /// <summary>
+        /// Function takes any select statement and will turn it into a select statement
+        /// that will return only the number of rows defined by parameter BufferSize.
+        /// If BufferSize is a string, then it will be assumed be a bind variable.
+        /// If it is an Int, then the constant will be used.
+        /// NOTE: If for some executions you want a full result set without rewriting query
+        ///         set BufferSize Param Value = 0;
+        ///         Value CANNOT BE SET TO NULL
+        /// </summary>
+        /// <param name="SelectStatement"></param>
+        /// <param name="BufferSize"></param>
+        /// <returns></returns>
+        public override string FormatSelectWithMaxRowsStatement(string SelectStatement, object BufferSize)
+        {
+            if (BufferSize == null
+                || BufferSize.ToString() == string.Empty)
+                return SelectStatement;
+
+            if (!(BufferSize is string || BufferSize is int))
+                throw new ArgumentException("BufferSize"
+                            , string.Format("Must be non null string or int data type only: BufferSize:{0}", BufferSize));
+
+            return string.Format("set rowcount {0}{2}{1}{2}"
+                , BufferSize is string ? BuildBindVariableName(BufferSize.ToString()) : BufferSize.ToString()
+                            , SelectStatement
+                            , Environment.NewLine);
+        }
+
         /// <summary>
         /// Returns the command text for a DbCommand to obtain the DateTime from the database.
         /// Note: This operation will make a database call.
@@ -143,23 +113,153 @@ namespace CV.Database
         /// default is UTC.</param>
         /// <param name="returnAsAlias">What the return column will be called</param>
         /// <returns>Back-end compliant command text for returning server time</returns>
-        public override string GetServerTimeCommandText(DateTimeKind dbDateType, string returnAsAlias)
+        public override string FormatServerTimeCommandText(DateTimeKind dbDateType, string returnAsAlias)
         {
-            return string.Format("select {0}", GetDbTimeAs(dbDateType, returnAsAlias));
+            string dbTime = dbDateType == DateTimeKind.Local ? "getdate()" : "getutcdate()";
+            return string.Format("select {0}"
+                , dbTime + (string.IsNullOrEmpty(returnAsAlias) ? "" : " as " + returnAsAlias));
+        }
+
+        public override DbCommand BuildGetColumnsCommand()
+        {
+            DbParameter paramSchemaName = CreateNewParameter(Provider.Constants.SchemaName
+                     , DbType.String, null, 0, ParameterDirection.Input, DBNull.Value);
+
+            DbParameter paramTableName = CreateNewParameter(Provider.Constants.TableName
+                    , DbType.String, null, 0, ParameterDirection.Input, DBNull.Value);
+            StringBuilder sql = new StringBuilder();
+
+            sql.AppendFormat("select s.name as {0}{1}", Provider.Constants.SchemaName, Environment.NewLine);
+            sql.AppendFormat(", t.name as {0}{1}", Provider.Constants.TableName, Environment.NewLine);
+            sql.AppendFormat(", c.name as {0}{1}", Provider.Constants.FLD_COLUMN_NAME, Environment.NewLine);
+            sql.AppendFormat(", t.object_id as {0}{1}", Provider.Constants.FLD_TABLE_ID, Environment.NewLine);
+            sql.AppendFormat(", c.object_id as {0}{1}", Provider.Constants.FLD_COLUMN_ID, Environment.NewLine);
+            sql.AppendFormat(", c2.DATA_TYPE  as {0}{1}", Provider.Constants.DataType, Environment.NewLine);
+            sql.AppendFormat(", c2.NUMERIC_PRECISION as {0}{1}", Provider.Constants.NumericPrecision, Environment.NewLine);
+            sql.AppendFormat(", c2.NUMERIC_PRECISION_RADIX as {0}{1}", Provider.Constants.NumericPrecisionRadix, Environment.NewLine);
+            sql.AppendFormat(", c2.NUMERIC_SCALE as {0}{1}", Provider.Constants.NumericScale, Environment.NewLine);
+            sql.AppendFormat(", c2.DATETIME_PRECISION as {0}{1}", Provider.Constants.DateTimePrecision, Environment.NewLine);
+            sql.AppendFormat(", case when c2.IS_NULLABLE = 'NO' then 0 else 1 end as {0}{1}", Provider.Constants.IsNullable, Environment.NewLine);
+            sql.AppendFormat(", c.is_identity as {0}{1}", Provider.Constants.IsIdentity, Environment.NewLine);
+            sql.AppendFormat(", c.is_computed as {0}{1}", Provider.Constants.IsComputed, Environment.NewLine);
+            sql.AppendFormat(", c.is_rowguidcol as {0}{1}", Provider.Constants.IsRowGuid, Environment.NewLine);
+            sql.AppendFormat(", c2.COLUMN_DEFAULT as {0}{1}", Provider.Constants.ColumnDefault, Environment.NewLine);
+            sql.AppendFormat(", c2.ORDINAL_POSITION as {0}{1}", Provider.Constants.OrdinalPosition, Environment.NewLine);
+            sql.AppendFormat(", c2.CHARACTER_MAXIMUM_LENGTH as {0}{1}", Provider.Constants.CharacterMaximumLength, Environment.NewLine);
+            sql.AppendFormat("from sys.tables t{0}", Environment.NewLine);
+            sql.AppendFormat("inner join sys.schemas s{0}", Environment.NewLine);
+            sql.AppendFormat("on t.schema_id = s.schema_id{0}", Environment.NewLine);
+            sql.AppendFormat("inner join sys.columns c{0}", Environment.NewLine);
+            sql.AppendFormat("on t.object_id = c.object_id{0}", Environment.NewLine);
+            sql.AppendFormat("inner join INFORMATION_SCHEMA.COLUMNS c2{0}", Environment.NewLine);
+            sql.AppendFormat("on s.name = c2.TABLE_SCHEMA{0}", Environment.NewLine);
+            sql.AppendFormat("and t.name = c2.TABLE_NAME{0}", Environment.NewLine);
+            sql.AppendFormat("and c.name = c2.COLUMN_NAME{0}", Environment.NewLine);
+            sql.AppendFormat("where ({0} IS NULL OR s.name = {0}){1}", paramSchemaName, Environment.NewLine);
+            sql.AppendFormat("and ({0} IS NULL OR t.name = {0}){1}", paramTableName, Environment.NewLine);
+            sql.AppendFormat("order by s.name, t.name, c.name{0}", Environment.NewLine);
+
+            DbCommand dbCmd = BuildSelectDbCommand(sql.ToString(), null);
+            CopyParameterToCollection(dbCmd.Parameters, paramSchemaName);
+            CopyParameterToCollection(dbCmd.Parameters, paramTableName);
+            return dbCmd;
+        }
+
+        public override DbCommand BuildGetPrimaryKeysCommand()
+        {
+            DbParameter paramSchemaName = CreateNewParameter(Provider.Constants.SchemaName
+                     , DbType.String, null, 0, ParameterDirection.Input, DBNull.Value);
+
+            DbParameter paramTableName = CreateNewParameter(Provider.Constants.TableName
+                    , DbType.String, null, 0, ParameterDirection.Input, DBNull.Value);
+            StringBuilder sql = new StringBuilder();
+
+            sql.AppendFormat("select i.name as {0}{1}", Provider.Constants.IndexName, Environment.NewLine);
+            sql.AppendFormat(", i.is_primary_key as {0}{1}", Provider.Constants.IsPrimaryKey, Environment.NewLine);
+            sql.AppendFormat(", ic.is_descending_key as {0}{1}", Provider.Constants.IsDescending, Environment.NewLine);
+            sql.AppendFormat(", ic.key_ordinal as {0}{1}", Provider.Constants.OrdinalPosition, Environment.NewLine);
+            sql.AppendFormat(", sc.name as {0}{1}", Provider.Constants.FLD_COLUMN_NAME, Environment.NewLine);
+            sql.AppendFormat(", o.name as {0}{1}", Provider.Constants.FLD_TABLE_NAME, Environment.NewLine);
+            sql.AppendFormat(", s.name as {0}{1}", Provider.Constants.FLD_SCHEMA_NAME, Environment.NewLine);
+            sql.AppendFormat("from sys.indexes i {0}", Environment.NewLine);
+            sql.AppendFormat("inner join sys.index_columns ic{0}", Environment.NewLine);
+            sql.AppendFormat("on i.object_id = ic.object_id{0}", Environment.NewLine);
+            sql.AppendFormat("and i.index_id = ic.index_id{0}", Environment.NewLine);
+            sql.AppendFormat("inner join sys.syscolumns sc{0}", Environment.NewLine);
+            sql.AppendFormat("on sc.id = i.object_id{0}", Environment.NewLine);
+            sql.AppendFormat("and ic.column_id = sc.colid{0}", Environment.NewLine);
+            sql.AppendFormat("inner join sys.objects o{0}", Environment.NewLine);
+            sql.AppendFormat("on o.object_id = i.object_id{0}", Environment.NewLine);
+            sql.AppendFormat("and o.type = 'U'{0}", Environment.NewLine);
+            sql.AppendFormat("inner join sys.schemas s{0}", Environment.NewLine);
+            sql.AppendFormat("on o.schema_id = s.schema_id{0}", Environment.NewLine);
+            sql.AppendFormat("where ({0} IS NULL OR s.name = {0}){1}", paramSchemaName, Environment.NewLine);
+            sql.AppendFormat("and ({0} IS NULL OR o.name = {0}){1}", paramTableName, Environment.NewLine);
+            sql.AppendFormat("order by s.name, o.name, i.name, ic.key_ordinal{0}", Environment.NewLine);
+
+            DbCommand dbCmd = BuildSelectDbCommand(sql.ToString(), null);
+            CopyParameterToCollection(dbCmd.Parameters, paramSchemaName);
+            CopyParameterToCollection(dbCmd.Parameters, paramTableName);
+            return dbCmd;
         }
 
         /// <summary>
-        /// Returns the backend specific function for current datetime
-        /// to be used in an sql command.
-        /// if ReturnAsAlias is not null, it will be the alias for the function
+        /// Builds a Select DbCommand for the given
+        /// Select Statement and parameter collection.
         /// </summary>
-        /// <param name="dbDateType">The format type of the date function(local, UTC, Unspecified (UTC))</param>
-        /// <param name="returnAsAlias">What the return column will be called</param>
-        /// <returns>Backend specific function for current date time including milliseconds</returns>
-        public override string GetDbTimeAs(DateTimeKind dbDateType, string returnAsAlias)
+        /// <param name="SelectStatement"></param>
+        /// <param name="DbParams"></param>
+        /// <returns></returns>
+        public override DbCommand BuildSelectDbCommand(string SelectStatement
+                                    , DbParameterCollection DbParams)
         {
-            string dbTime = dbDateType == DateTimeKind.Local ? "getdate()" : "getutcdate()";
-            return dbTime + (string.IsNullOrEmpty(returnAsAlias) ? "" : " as " + returnAsAlias);
+            return BuildNonQueryDbCommand(SelectStatement, DbParams);
+        }
+
+        /// <summary>
+        /// Builds a NonQueryStatement DbCommand for the given
+        /// NonQueryStatement Statement and parameter collection.
+        /// </summary>
+        /// <param name="NonQueryStatement"></param>
+        /// <param name="DbParams"></param>
+        /// <returns></returns>
+        public override DbCommand BuildNonQueryDbCommand(string NonQueryStatement
+                                    , DbParameterCollection DbParams)
+        {
+            using (SqlConnection conn = new SqlConnection(_connectionString))
+            {
+                DbCommand dbCmd = conn.CreateCommand();
+                dbCmd.CommandText = NonQueryStatement;
+                if (DbParams != null)
+                    foreach (DbParameter dbParam in DbParams)
+                        CopyParameterToCollection(dbCmd.Parameters, dbParam);
+                return dbCmd;
+            }
+        }
+
+        public override DbCommand BuildStoredProcDbCommand(string StoredProcedure, bool RemoveReturnValue)
+        {
+            using (SqlConnection conn = new SqlConnection(_connectionString))
+            {
+                conn.Open();
+                SqlCommand sqlCmd = conn.CreateCommand();
+                sqlCmd.CommandType = CommandType.StoredProcedure;
+                sqlCmd.CommandText = StoredProcedure;
+                sqlCmd.Connection = conn;
+                SqlCommandBuilder.DeriveParameters(sqlCmd);
+                return sqlCmd;
+            }
+        }
+
+
+        public override DbCommand BuildNullDbCommand()
+        {
+            return BuildNonQueryDbCommand(NoOpDbCommandText, null);
+        }
+
+        public override DbParameterCollection CreateParameterCollection()
+        {
+            return BuildNullDbCommand().Parameters;
         }
 
         /// <summary>
@@ -171,22 +271,31 @@ namespace CV.Database
         public override string GenerateStoredProcedureCall(string storedProcedure, DbParameterCollection dbParameters)
         {
             SqlParameterCollection sqlParameters = (SqlParameterCollection)dbParameters;
-            StringBuilder commandText = new StringBuilder(string.Format("execute {0} ", storedProcedure));
+            StringBuilder commandText = new StringBuilder();
+            StringBuilder parameters = new StringBuilder();
+            string returnParam  = null;
             if (sqlParameters != null && sqlParameters.Count > 0)
             {
-                bool firstParam = true;
                 foreach (SqlParameter param in sqlParameters)
                 {
                     if (param.Direction == ParameterDirection.ReturnValue)
-                        commandText.Insert(0, param.ParameterName + " = ");
-                    commandText.AppendFormat("{0} {1}{2}"
-                            , firstParam ? "" : ", "
+                    {
+                        commandText.AppendFormat("declare {0} int{1}", param.ParameterName, Environment.NewLine);
+                        returnParam = param.ParameterName;
+                        continue;
+                    }
+
+                    parameters.AppendFormat("{0} {1}{2}"
+                            , parameters.Length == 0 ? "" : ", "
                             , param.ParameterName
                             , param.Direction == ParameterDirection.Output
                                 || param.Direction == ParameterDirection.InputOutput ? " out" : "");
-                    firstParam = false;
                 }
             }
+            commandText.AppendFormat("execute{0}{1} {2}"
+                , string.IsNullOrEmpty(returnParam) ? " " : string.Format(" {0} = ", returnParam)
+                , storedProcedure
+                , parameters);
             return commandText.ToString();
         }
 
@@ -212,20 +321,23 @@ namespace CV.Database
         /// Derives the parameters of the given DbCommand object
         /// </summary>
         /// <param name="dbCmd">A DbCommand object</param>
-        public override void DeriveParameters(DbCommand dbCmd)
+        public override DbCommand DeriveParameters(DbCommand dbCmd, bool RemoveReturnValue = true)
         {
-            //if (dbCmd.Connection != null && dbCmd.ConnectionState.
-            SqlCommand sqlCmd = CastDbCommand(dbCmd);
-            if (sqlCmd.Connection.State != ConnectionState.Open)
-                using (SqlConnection conn = new SqlConnection(_connectionString))
-                {
-                    conn.Open();
-                    sqlCmd.Connection = conn;
-                    SqlCommandBuilder.DeriveParameters(sqlCmd);
-                    sqlCmd.Connection = null;
-                    conn.Close();
-                }
-            else SqlCommandBuilder.DeriveParameters(sqlCmd);           
+            using (SqlConnection conn = new SqlConnection(_connectionString))
+            {
+                conn.Open();
+                SqlCommand sqlCmd = (SqlCommand)dbCmd;
+                sqlCmd.CommandType = CommandType.StoredProcedure;
+                sqlCmd.Connection = conn;
+                SqlCommandBuilder.DeriveParameters(sqlCmd);
+                conn.Close();
+                sqlCmd.Connection = null;
+                if (RemoveReturnValue)
+                    for (int i = 0; i < sqlCmd.Parameters.Count; i++)
+                        if (sqlCmd.Parameters[i].Direction == ParameterDirection.ReturnValue)
+                            sqlCmd.Parameters.RemoveAt(i);
+                return sqlCmd;
+            }
         }
 
         /// <summary>
@@ -245,40 +357,13 @@ namespace CV.Database
             , ParameterDirection paramDirection
             , object paramValue)
         {
-            if (!paramName.Contains(SqlServer.Constants.ParameterPrefix))
-                paramName = SqlServer.Constants.ParameterPrefix + paramName;
+            if (!paramName.Contains(Constants.ParameterPrefix))
+                paramName = Constants.ParameterPrefix + paramName;
             SqlParameter newParam = new SqlParameter(paramName, paramType);
             newParam.Value = paramValue;
             newParam.Direction = paramDirection;
             newParam.DbType = paramType;
             return ValidateParam(newParam, maxLength, paramType);
-        }
-        /// <summary>
-        /// Creates a DbParameterCollection from the given attributes for the first parameter.
-        /// </summary>
-        /// <param name="paramName">The name of the parameter</param>
-        /// <param name="paramType">The data type of the parameter</param>
-        /// <param name="nativeDbType">The back-end specific data type</param>
-        /// <param name="maxLength">The maximum length of the param for out parameters; 0 otherwise</param>
-        /// <param name="paramDirection">The parameter direction</param>
-        /// <param name="paramValue">The value of the parameter.</param>
-        /// <returns>New DbParameterCollection object</returns>
-        public override DbParameterCollection CreateNewParameterAndCollection(string paramName
-            , DbType paramType
-            , string nativeDataType
-            , Int32 maxLength
-            , ParameterDirection paramDirection
-            , object paramValue)
-        {
-            DbParameterCollection dbParams = BuildNoOpDbCommand().Parameters;
-            CopyParameterToCollection(dbParams
-                , CreateNewParameter(paramName
-                    , paramType
-                    , nativeDataType
-                    , maxLength
-                    , paramDirection
-                    , paramValue));
-            return dbParams;
         }
 
         private static SqlParameter ValidateParam(SqlParameter dbParam, Int32 size, DbType paramType)
@@ -373,19 +458,13 @@ namespace CV.Database
             SqlParameterCollection sqlParameters = (SqlParameterCollection)dbParameters;
             SqlParameter sqlParam = (SqlParameter)dbParam;
             if (sqlParameters.Contains(sqlParam.ParameterName))
-                throw new ExceptionMgr(this.ToString()
-                        , new ArgumentException(string.Format("Parameter {0} already belongs to this collection; use Set to change value."
-                                , sqlParam.ParameterName)));
+                throw new ArgumentException(string.Format("Parameter {0} already belongs to this collection; use Set to change value."
+                                , sqlParam.ParameterName));
 
             sqlParameters.Add(CloneParameter(sqlParam));
             return sqlParameters[sqlParam.ParameterName];
         }
 
-        public override void CopyParameters(DbParameterCollection dbSourceParameters, DbParameterCollection dbDestinationParameters)
-        {
-            foreach (DbParameter dbParam in dbSourceParameters)
-                CopyParameterToCollection(dbDestinationParameters, dbParam);
-        }
 
         /// <summary>
         /// Returns a clone of the given DbParameter collection.
@@ -412,40 +491,42 @@ namespace CV.Database
         public override DbType GetGenericDbTypeFromNativeDataType(string nativeDataType)
         {
             nativeDataType = nativeDataType.ToLower();
-            if (nativeDataType == SqlServer.Constants.DataTypeBigInt)
+            if (nativeDataType == Constants.DataTypeBigInt)
                 return DbType.Int64;
-            else if (nativeDataType == SqlServer.Constants.DataTypeTinyint)
+            else if (nativeDataType == Constants.DataTypeTinyint)
                 return DbType.Byte;
-            else if (nativeDataType == SqlServer.Constants.DataTypeBit)
+            else if (nativeDataType == Constants.DataTypeBit)
                 return DbType.Boolean;
-            else if (nativeDataType == SqlServer.Constants.DataTypeChar
-                || nativeDataType == SqlServer.Constants.DataTypeChar
-                || nativeDataType == SqlServer.Constants.DataTypeVarChar
-                || nativeDataType == SqlServer.Constants.DataTypeNVarChar
-                || nativeDataType == SqlServer.Constants.DataTypeText
-                || nativeDataType == SqlServer.Constants.DataTypeNText)
+            else if (nativeDataType == Constants.DataTypeChar
+                || nativeDataType == Constants.DataTypeChar
+                || nativeDataType == Constants.DataTypeVarChar
+                || nativeDataType == Constants.DataTypeNVarChar
+                || nativeDataType == Constants.DataTypeText
+                || nativeDataType == Constants.DataTypeNText)
                 return DbType.String;
-            else if (nativeDataType == SqlServer.Constants.DataTypeSmallDateTime
-                || nativeDataType == SqlServer.Constants.DataTypeDate
-                || nativeDataType == SqlServer.Constants.DataTypeDateTime
-                || nativeDataType == SqlServer.Constants.DataTypeDateTime2)
+            else if (nativeDataType == Constants.DataTypeSmallDateTime
+                || nativeDataType == Constants.DataTypeDate
+                || nativeDataType == Constants.DataTypeDateTime
+                || nativeDataType == Constants.DataTypeDateTime2)
                 return DbType.DateTime;
-            else if (nativeDataType == SqlServer.Constants.DataTypeMoney
-                || nativeDataType == SqlServer.Constants.DataTypeSmallMoney
-                || nativeDataType == SqlServer.Constants.DataTypeDecimal)
+            else if (nativeDataType == Constants.DataTypeMoney
+                || nativeDataType == Constants.DataTypeSmallMoney
+                || nativeDataType == Constants.DataTypeDecimal
+                || nativeDataType == Constants.DataTypeNumeric)
                 return DbType.Decimal;
-            else if (nativeDataType == SqlServer.Constants.DataTypeInt)
+            else if (nativeDataType == Constants.DataTypeInt)
                 return DbType.Int32;
-            else if (nativeDataType == SqlServer.Constants.DataTypeReal)
+            else if (nativeDataType == Constants.DataTypeReal)
                 return DbType.Double;
-            else if (nativeDataType == SqlServer.Constants.DataTypeSmallInt)
+            else if (nativeDataType == Constants.DataTypeSmallInt)
                 return DbType.Int16;
-            else if (nativeDataType == SqlServer.Constants.DataTypeUniqueId)
+            else if (nativeDataType == Constants.DataTypeUniqueId)
                 return DbType.Guid;
-            else throw new ExceptionMgr(this.ToString()
-                , new ArgumentOutOfRangeException(
+            else if (nativeDataType == Constants.DataTypeVarBinary)
+                return DbType.Binary;
+            else throw new ArgumentOutOfRangeException(
                     string.Format("nativeDataType; {0} was not defined as a DotNetType."
-                    , nativeDataType)));
+                    , nativeDataType));
         }
 
 
@@ -459,41 +540,44 @@ namespace CV.Database
         public override string GetDotNetDataTypeFromNativeDataType(string nativeDataType)
         {
             nativeDataType = nativeDataType.ToLower();
-            if (nativeDataType == SqlServer.Constants.DataTypeBigInt)
+            if (nativeDataType == Constants.DataTypeBigInt)
                 return typeof(System.Int64).ToString();
-            else if (nativeDataType == SqlServer.Constants.DataTypeTinyint)
+            else if (nativeDataType == Constants.DataTypeTinyint)
                 return typeof(System.Byte).ToString();
-            else if (nativeDataType == SqlServer.Constants.DataTypeBit)
+            else if (nativeDataType == Constants.DataTypeBit)
                 return typeof(System.Boolean).ToString();
-            else if (nativeDataType == SqlServer.Constants.DataTypeChar
-                || nativeDataType == SqlServer.Constants.DataTypeChar
-                || nativeDataType == SqlServer.Constants.DataTypeVarChar
-                || nativeDataType == SqlServer.Constants.DataTypeNVarChar)
+            else if (nativeDataType == Constants.DataTypeChar
+                || nativeDataType == Constants.DataTypeChar
+                || nativeDataType == Constants.DataTypeVarChar
+                || nativeDataType == Constants.DataTypeNVarChar)
                 return typeof(System.String).ToString();
-            else if (nativeDataType == SqlServer.Constants.DataTypeText
-                || nativeDataType == SqlServer.Constants.DataTypeNText)
+            else if (nativeDataType == Constants.DataTypeText
+                || nativeDataType == Constants.DataTypeNText)
                 return typeof(System.Object).ToString();
-            else if (nativeDataType == SqlServer.Constants.DataTypeSmallDateTime
-                || nativeDataType == SqlServer.Constants.DataTypeDate
-                || nativeDataType == SqlServer.Constants.DataTypeDateTime
-                || nativeDataType == SqlServer.Constants.DataTypeDateTime2)
+            else if (nativeDataType == Constants.DataTypeSmallDateTime
+                || nativeDataType == Constants.DataTypeDate
+                || nativeDataType == Constants.DataTypeDateTime
+                || nativeDataType == Constants.DataTypeDateTime2)
                 return typeof(System.DateTime).ToString();
-            else if (nativeDataType == SqlServer.Constants.DataTypeMoney
-                || nativeDataType == SqlServer.Constants.DataTypeSmallMoney
-                || nativeDataType == SqlServer.Constants.DataTypeDecimal)
+            else if (nativeDataType == Constants.DataTypeMoney
+                || nativeDataType == Constants.DataTypeSmallMoney
+                || nativeDataType == Constants.DataTypeDecimal)
                 return typeof(System.Decimal).ToString();
-            else if (nativeDataType == SqlServer.Constants.DataTypeInt)
+            else if (nativeDataType == Constants.DataTypeInt)
                 return typeof(System.Int32).ToString();
-            else if (nativeDataType == SqlServer.Constants.DataTypeReal)
+            else if (nativeDataType == Constants.DataTypeReal)
                 return typeof(System.Double).ToString();
-            else if (nativeDataType == SqlServer.Constants.DataTypeSmallInt)
+            else if (nativeDataType == Constants.DataTypeSmallInt)
                 return typeof(System.Int16).ToString();
-            else if (nativeDataType == SqlServer.Constants.DataTypeUniqueId)
+            else if (nativeDataType == Constants.DataTypeUniqueId)
                 return typeof(System.Guid).ToString();
-            else throw new ExceptionMgr(this.ToString()
-                        , new ArgumentOutOfRangeException(
+            else if (nativeDataType == Constants.DataTypeNumeric)
+                return typeof(System.Decimal).ToString();
+            else if (nativeDataType == Constants.DataTypeVarBinary)
+                return typeof(System.Byte[]).ToString();
+            else throw new ArgumentOutOfRangeException(
                             string.Format("nativeDataType; {0} was not defined as a DotNetType."
-                            , nativeDataType)));
+                            , nativeDataType));
         }
 
 
@@ -585,73 +669,6 @@ namespace CV.Database
             return string.Format("{0}", sqlParam.SqlDbType);
         }
 
-        /// <summary>
-        /// Returns a boolean indicating whether or not the given dbException is for a primary key constraint
-        /// </summary>
-        /// <param name="dbe">DbException object</param>
-        /// <returns>True if dbException is a primary key violation</returns>
-        public override bool IsPrimaryKeyViolation(DbException dbException)
-        {
-            SqlException sqlException = (SqlException)dbException;
-            if (sqlException.Number == SqlServer.Constants.DBError_UniqueKeyViolation)
-                return true;
-            return false;
-        }
-
-
-
-
-        /// <summary>
-        /// Builds a Select DbCommand for the given
-        /// Select Statement and parameter collection.
-        /// </summary>
-        /// <param name="SelectStatement"></param>
-        /// <param name="DbParams"></param>
-        /// <returns></returns>
-        public override DbCommand BuildSelectDbCommand(string SelectStatement
-                                    , DbParameterCollection DbParams)
-        {
-            return BuildNonQueryDbCommand(SelectStatement, DbParams);
-        }
-
-
-        public override DbCommand BuildNoOpDbCommand()
-        {
-            return BuildNonQueryDbCommand(NoOpDbCommandText, null);
-        }
-
-        /// <summary>
-        /// Builds a NonQueryStatement DbCommand for the given
-        /// NonQueryStatement Statement and parameter collection.
-        /// </summary>
-        /// <param name="nonQueryStatement"></param>
-        /// <param name="dbParams"></param>
-        /// <returns></returns>
-        public override DbCommand BuildNonQueryDbCommand(string nonQueryStatement
-                                    , DbParameterCollection dbParams)
-        {
-            using (SqlConnection conn = new SqlConnection(_connectionString))
-            {
-                DbCommand dbCmd = conn.CreateCommand();
-                dbCmd.CommandText = nonQueryStatement;
-                if (dbParams != null)
-                    foreach (DbParameter dbParam in dbParams)
-                        CopyParameterToCollection(dbParams, dbParam);
-                return dbCmd;
-            }
-        }
-
-        public override DbCommand BuildStoredProcedureDbCommand(string storedProcedure)
-        {
-            using (SqlConnection conn = new SqlConnection(_connectionString))
-            {
-                DbCommand dbCmd = conn.CreateCommand();
-                dbCmd.CommandText = storedProcedure;
-                dbCmd.CommandType = CommandType.StoredProcedure;
-                DeriveParameters(dbCmd);
-                return dbCmd;
-            }
-        }
 
         /// <summary>
         /// Returns a DataSet object from the database command object
@@ -678,14 +695,17 @@ namespace CV.Database
             }
         }
 
-        /// <summary>
-        /// Returns a DataSet object from the database command object
-        /// </summary>
-        /// <param name="dbCommand">Database Command Object</param>
-        /// <returns>DataSet</returns>
-        public override DataSet ExecuteDataSet(DbCommand dbCommand)
+        public override DbDataReader ExecuteReader(DbCommand dbCommand, DbTransaction dbTran)
         {
-            return ExecuteDataSet(dbCommand, null);
+            SqlCommand sqlCommand = (SqlCommand)dbCommand;
+            using (SqlConnection con = new SqlConnection(_connectionString))
+            {
+                con.Open();
+                sqlCommand.Connection = con;
+                if (dbTran != null)
+                    sqlCommand.Transaction = (SqlTransaction)dbTran;
+                return sqlCommand.ExecuteReader();
+            }
         }
 
         /// <summary>
@@ -707,23 +727,11 @@ namespace CV.Database
                 return sqlCommand.ExecuteScalar();
             }
         }
-
-        /// <summary>
-        /// Returns an object from the database command object
-        /// </summary>
-        /// <param name="dbCommand">Database Command Object</param>
-        /// <returns>object</returns>
-        public override object ExecuteScalar(DbCommand dbCommand)
-        {
-            return ExecuteScalar(dbCommand, null);
-        }
-
         /// <summary>
         /// Executes database command object
         /// </summary>
         /// <param name="dbCommand">Database Command Object</param>
         /// <param name="dbTran">Transaction or null</param>
-        /// <returns>Rows Affected</returns>
         public override int ExecuteNonQuery(DbCommand dbCommand
                 , DbTransaction dbTran)
         {
@@ -736,53 +744,6 @@ namespace CV.Database
                     sqlCommand.Transaction = (SqlTransaction)dbTran;
                 return sqlCommand.ExecuteNonQuery();
             }
-        }
-
-        /// <summary>
-        /// Executes database command object
-        /// </summary>
-        /// <param name="dbCommand">Database Command Object</param>
-        /// <returns>RowsAffected</returns>
-        public override int ExecuteNonQuery(DbCommand dbCommand)
-        {
-            return ExecuteNonQuery(dbCommand, null);
-        }
-
-        /// <summary>
-        /// Returns an IDataReader object from the database command object
-        /// </summary>
-        /// <param name="dbCommand">Database Command Object</param>
-        /// <param name="dbTran">Transaction or null</param>
-        /// <returns>IDataReader</returns>
-        public override IDataReader ExecuteReader(DbCommand dbCommand
-                , DbTransaction dbTran)
-        {
-            SqlCommand sqlCommand = (SqlCommand)dbCommand;
-            SqlConnection con = new SqlConnection(_connectionString);
-            try
-            {
-                con.Open();
-                sqlCommand.Connection = con;
-                if (dbTran != null)
-                    sqlCommand.Transaction = (SqlTransaction)dbTran;
-                return sqlCommand.ExecuteReader();
-            }
-            catch
-            {
-                if (con.State == ConnectionState.Open)
-                    con.Close();
-                throw;
-            }
-        }
-
-        /// <summary>
-        /// Returns an IDataReader object from the database command object
-        /// </summary>
-        /// <param name="dbCommand">Database Command Object</param>
-        /// <returns>IDataReader</returns>
-        public override IDataReader ExecuteReader(DbCommand dbCommand)
-        {
-            return ExecuteReader(dbCommand, null);
         }
 
         /// <summary>
@@ -805,16 +766,68 @@ namespace CV.Database
             }
         }
 
-        /// <summary>
-        /// Returns an XmlReader object from the database command object
-        /// </summary>
-        /// <param name="dbCommand">Database Command Object</param>
-        /// <returns>XmlReader</returns>
-        public override XmlReader ExecuteXmlReader(DbCommand dbCommand)
+        public override void ExecuteBulkCopy(DataTable datatable)
         {
-            return ExecuteXmlReader(dbCommand, null);
+            using (SqlBulkCopy bulkCopy = new SqlBulkCopy(_connectionString))
+            {
+                bulkCopy.DestinationTableName = datatable.TableName;
+                bulkCopy.WriteToServer(datatable);
+                bulkCopy.Close();
+            }
+        }
+
+        /// <summary>
+        /// Returns a boolean indicating whether or not the given dbException is for a primary key constraint
+        /// </summary>
+        /// <param name="dbe">DbException object</param>
+        /// <returns>True if dbException is a primary key violation</returns>
+        public override bool IsPrimaryKeyViolation(DbException dbException)
+        {
+            SqlException sqlException = (SqlException)dbException;
+            if (sqlException.Number == Constants.DBError_UniqueKeyViolation)
+                return true;
+            return false;
         }
 
 
+        /// <summary>
+        /// Returns a boolean indicating whether or not the given dbException is for a lock timeout exception
+        /// </summary>
+        /// <param name="dbe">DbException object</param>
+        /// <returns>True if dbException is a locktimeout exception</returns>
+        public override bool IsLockTimeOutException(DbException dbException)
+        {
+            SqlException sqlException = (SqlException)dbException;
+            if (sqlException.Number == Constants.DBError_QueryTimeOut)
+                return true;
+            return false;
+        }
+
+        public override bool IsForeignKeyException(DbException dbException)
+        {
+            SqlException sqlException = (SqlException)dbException;
+            if (sqlException.Number == Constants.DBError_ForeignKeyViolation)
+                return true;
+            return false;
+        }
+
+        public override bool IsUniqueConstraintException(DbException dbException)
+        {
+            SqlException sqlException = (SqlException)dbException;
+            if (sqlException.Number == Constants.DBError_UniqueKeyViolation)
+                return true;
+            return false;
+        }
+
+        public override bool IsNullConstraintException(DbException dbException)
+        {
+            SqlException sqlException = (SqlException)dbException;
+            if (sqlException.Number == Constants.DBError_NullConstraintViolation)
+                return true;
+            return false;
+        }
+
+    
     }
+
 }

@@ -69,7 +69,7 @@ namespace CV.Logging
                     lock(_logFilePrefix)
                     {
                         // just in case there is an OS collision
-                        FileMgr.WriteTextToFile(filename
+                        FileHelper.WriteTextToFile(filename
                                     , message + Environment.NewLine
                                     , appendText, true);
                         

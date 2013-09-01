@@ -474,6 +474,7 @@ namespace CV.Database
             _tableCache.Clear();
         }
 
+
         /// <summary>
         /// Build the dbCommands and add them to the cache.
         /// </summary>
@@ -1431,16 +1432,63 @@ namespace CV.Database
             return new DbTable(cacheRef);
         }
 
+        internal void RefreshCache(string SchemaName, string TableName)
+        {
+            RefreshCache(string.Format("{0}.{1}", SchemaName, TableName));
+        }
 
+        internal void RefreshCache(string FullyQualifiedTableName)
+        {
+            if (_tableCache.Exists(FullyQualifiedTableName))
+            {
+                DbTable tbl = _tableCache.Get(FullyQualifiedTableName);
+                lock (tbl.Columns)
+                {
+                    foreach (string column in tbl.Columns.Keys)
+                    {
+                        string fullyQualifiedColumn = string.Format("{0}.{1}", tbl.FullyQualifiedName, column);
+                        if (_columnCache.Exists(fullyQualifiedColumn))
+                            _columnCache.Remove(fullyQualifiedColumn);
+                    }
+                    _tableCache.Remove(FullyQualifiedTableName);
+                }
+            }
+            GetTableMetaData(FullyQualifiedTableName);
+        }
+
+
+        internal bool TableExists(string SchemaName, string TableName)
+        {
+            string fullyQualifiedTableName = SchemaName + "." + TableName;
+            if (!_tableCache.Exists(fullyQualifiedTableName))
+            {
+                DataSet catalogDataSet = GetCatalogData(fullyQualifiedTableName.ToUpper());
+                if (catalogDataSet.Tables[Database.Constants.Columns].Rows.Count > 0)
+                    GetTableMetaData(fullyQualifiedTableName, catalogDataSet);
+                else return false;
+            }
+            return true;
+        }
+
+        bool CheckTableMetaData(string fullyQualifiedTableName)
+        {
+            DataSet catalogDataSet = GetCatalogData(fullyQualifiedTableName.ToUpper());
+            return (catalogDataSet.Tables[Database.Constants.Columns].Rows.Count > 0);
+        }
+
+        DbTable GetTableMetaData(string fullyQualifiedTableName)
+        {
+            return GetTableMetaData(fullyQualifiedTableName
+                , GetCatalogData(fullyQualifiedTableName.ToUpper()));
+        }
 
         /// <summary>
         /// Creates the table meta data structure for a given fully qualified table name.
         /// (Schema and table Name)
         /// </summary>
         /// <param name="fullyQualifiedTableName"></param>
-        DbTable GetTableMetaData(string fullyQualifiedTableName)
+        DbTable GetTableMetaData(string fullyQualifiedTableName, DataSet catalogDataSet)
         {
-            DataSet catalogDataSet = GetCatalogData(fullyQualifiedTableName.ToUpper());
             // see if table was found
             if (catalogDataSet.Tables[Database.Constants.Columns].Rows.Count == 0)
                 throw new ExceptionMgr(this.ToString(), new ArgumentNullException(
