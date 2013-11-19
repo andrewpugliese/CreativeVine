@@ -9,8 +9,10 @@ using System.Dynamic;
 
 
 using CV.Database;
+using CV.Database.Provider;
 using CV.Configuration;
 using CV.Global;
+using CV.Cache;
 
 namespace CV.Database
 {
@@ -18,8 +20,6 @@ namespace CV.Database
     {
         DatabaseProviderBase _dbProvider = null;
 
-        public enum DatabaseType { SqlServer, Oracle, DB2 };
-        private DatabaseType _dbType;
         private TimeSpan _timeSpanFromDb = new TimeSpan(0, 0, 0);
         // manages the database catalog metadata
         private DbCatalogMgr _dbCatalogMgr = null;
@@ -52,17 +52,12 @@ namespace CV.Database
         /// <summary>
         /// Returns an enum indicating whether the Database (e.g. Oracle, SqlServer)
         /// </summary>
-        public DatabaseTypeName DatabaseTypeName
+        public DatabaseTypeName DatabaseType
         {
             get { return _dbProvider.TypeName; }
         }
 
-        public DatabaseType DbType
-        {
-            get { return _dbType; }
-        }
-
-        /// <summary>
+         /// <summary>
         /// Returns an enum indicating who the provider is for the database (e.g. Microsoft, Oracle)
         /// </summary>
         public DatabaseProviderName ProviderName
@@ -316,6 +311,90 @@ namespace CV.Database
             return BuildSelectDbCommand(result.Item1, result.Item2);
         }
 
+        public DbCommand BuildDropTableDbCommand(string schema, string table)
+        {
+            return _dbProvider.BuildDropTableDbCommand(schema, table);
+        }
+
+        public DbCommand BuildTruncateTableDbCommand(string schema, string table)
+        {
+            return _dbProvider.BuildTruncateTableDbCommand(schema, table);
+        }
+
+        public DbCommand BuildSelectEmptyTableDbCommand(string schema, string table)
+        {
+            string sql = string.Format("select * from {0}.{1} where 1 = 2", schema, table);
+            return _dbProvider.BuildSelectDbCommand(sql, null);
+        }
+
+        List<DbIndexMetaData> GetIndexMetaData(string targetSchema
+            , string targetTable
+            , CacheMgr<string, DbIndex> indexes)
+        {
+            List<DbIndexMetaData> indexMetaData = null;
+            if (indexes != null)
+            {
+                Dictionary<string, DbIndex> tableIndexes = null;
+                if (TableExists(targetSchema, targetTable))
+                    tableIndexes = DbCatalogGetTable(targetSchema, targetTable).Indexes;
+                foreach (string indexName in indexes.Keys)
+                {
+                    DbIndex index = indexes.Get(indexName);
+                    DbIndexMetaData indexCopy = new DbIndexMetaData();
+                    indexCopy.SchemaName = targetSchema.ToUpper();
+                    indexCopy.TableName = targetTable.ToUpper();
+                    indexCopy.IndexName = index.IndexName.ToUpper().Replace(index.TableName.ToUpper(), targetTable.ToUpper());
+                    if (tableIndexes != null && tableIndexes.ContainsKey(indexCopy.IndexName))
+                            continue;
+                    indexCopy.IsClustered = index.IsClustered;
+                    indexCopy.IsPrimaryKey = index.IsPrimaryKey;
+                    indexCopy.IsUnique = index.IsUnique;
+                    indexCopy.ColumnOrder = new SortedDictionary<short, DbIndexColumnMetaData>();
+                    foreach (short order in index.ColumnOrder.Keys)
+                    {
+                        DbIndexColumnMetaData columnCopy = new DbIndexColumnMetaData();
+                        columnCopy.ColumnFunction = index.ColumnOrder[order].ColumnFunction;
+                        columnCopy.ColumnName = index.ColumnOrder[order].ColumnName;
+                        columnCopy.IsDescending = index.ColumnOrder[order].IsDescending;
+                        indexCopy.ColumnOrder.Add(order, columnCopy);
+                    }
+                    indexCopy.IncludeColumns = new List<string>();
+                    foreach (string column in index.IncludeColumns)
+                        indexCopy.IncludeColumns.Add(column);
+                    if (indexMetaData == null)
+                        indexMetaData = new List<DbIndexMetaData>();
+                    indexMetaData.Add(indexCopy);
+                }
+            }
+            return indexMetaData;
+        }
+
+        public DbCommand BuildCreateTableDbCommand(string sourceSchema, string sourceTable
+            , string targetSchema, string targetTable, CacheMgr<string, DbIndex> indexes = null)
+        {
+            List<DbIndexMetaData> indexMetaData = GetIndexMetaData(targetSchema, targetTable, indexes);
+            return _dbProvider.BuildCreateTableDbCommand(sourceSchema, sourceTable
+                , targetSchema, targetTable, indexMetaData);
+        }
+
+        public DbCommand BuildAddIndexesToTableDbCommand(string targetSchema, string targetTable
+            , CacheMgr<string, DbIndex> indexes = null)
+        {
+            List<DbIndexMetaData> indexMetaData = GetIndexMetaData(targetSchema, targetTable, indexes);
+            return _dbProvider.BuildAddIndexesToTableDbCommand(targetSchema, targetTable, indexMetaData);
+        }
+
+        /// <summary>
+        /// This command is not yet completed;
+        /// </summary>
+        /// <param name="table">DataTable to derive the meta data for creating table columns</param>
+        /// <returns></returns>
+        public DbCommand BuildCreateTableDbCommand(DataTable table)
+        {
+            return _dbProvider.BuildCreateTableDbCommand(table);
+        }
+
+ 
         #endregion
 
         #region Database Catalog Methods (Data Dictionary)

@@ -48,6 +48,10 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\Cache\CV.Cache\CV.Cache.csproj">
+      <Project>{83C1EDC3-D1B9-4114-9B9C-5307AA80D4CC}</Project>
+      <Name>CV.Cache</Name>
+    </ProjectReference>
     <ProjectReference Include="..\..\Global\CV.Global\CV.Global.csproj">
       <Project>{00600807-856B-4DB5-9A7A-2D4A005785C9}</Project>
       <Name>CV.Global</Name>

@@ -9,6 +9,7 @@ using System.Xml;
 
 using CV.Global;
 using SqlServer = CV.Database.Provider.Microsoft;
+using CV.Database.Provider;
 
 namespace CV.Database
 {
@@ -41,6 +42,135 @@ namespace CV.Database
                     , dbCmd.ToString())));
             return sqlCmd;
         }
+
+
+        public override DbCommand BuildTruncateTableDbCommand(string schema, string table)
+        {
+            StringBuilder sql = new StringBuilder();
+            sql.AppendFormat("truncate table {0}.{1}{2}", schema, table, Environment.NewLine);
+            DbCommand dbCmd = BuildNonQueryDbCommand(sql.ToString(), null);
+            return dbCmd;
+        }
+
+        public override DbCommand BuildDropTableDbCommand(string schema, string table)
+        {
+            StringBuilder sql = new StringBuilder();
+            sql.AppendFormat("drop table {0}.{1}{2}", schema, table, Environment.NewLine);
+            DbCommand dbCmd = BuildNonQueryDbCommand(sql.ToString(), null);
+            return dbCmd;
+        }
+
+        public override DbCommand BuildAddIndexesToTableDbCommand(string targetSchema
+            , string targetTable
+            , List<DbIndexMetaData> indexes)
+        {
+            if (indexes == null)
+                return BuildNoOpDbCommand();
+            StringBuilder sql = new StringBuilder();
+            foreach (DbIndexMetaData index in indexes)
+            {
+                if (index.IsPrimaryKey)
+                {
+                    sql.AppendFormat("alter table {0}.{1}{2}", targetSchema, targetTable, Environment.NewLine);
+                    sql.AppendFormat("add constraint {0} primary key {1}{2}({2}"
+                        , string.Format("PK{0}_{1}"
+                            , index.IsClustered ? "C" : "N"
+                            , targetTable)
+                        , (index.IsClustered ? "clustered " : "nonclustered ")
+                        , Environment.NewLine);
+                    foreach (short columnOrder in index.ColumnOrder.Keys)
+                    {
+                        DbIndexColumnMetaData column = index.ColumnOrder[columnOrder];
+                        sql.AppendFormat("{0}{1} {2} {3}", columnOrder > 1 ? ", " : ""
+                            , column.ColumnName
+                            , column.IsDescending ? "DESC" : "ASC"
+                            , Environment.NewLine);
+                    }
+                    sql.AppendFormat("){0}", Environment.NewLine);
+
+                }
+                else
+                {
+                    sql.AppendFormat("create {0}{1}index {2} on {3}.{4}{5}({5}"
+                        , index.IsUnique ? "unique " : ""
+                        , index.IsClustered ? "clustered " : "nonclustered "
+                        , string.Format("{0}X{1}_{2}"
+                            , index.IsUnique ? "U" : "I"
+                            , index.IsClustered ? "C" : "N"
+                            , index.TableName)
+                        , targetSchema, targetTable, Environment.NewLine);
+                    foreach (byte columnOrder in index.ColumnOrder.Keys)
+                    {
+                        DbIndexColumnMetaData column = index.ColumnOrder[columnOrder];
+                        sql.AppendFormat("{0} {1} {2}{3}", columnOrder > 1 ? ", " : ""
+                            , column.ColumnName
+                            , column.IsDescending ? "DESC" : "ASC"
+                            , Environment.NewLine);
+                    }
+                    sql.AppendFormat("){0}", Environment.NewLine);
+                    if (index.IncludeColumns.Count > 0)
+                    {
+                        sql.AppendFormat("include {0}({0}", Environment.NewLine);
+                        bool first = true;
+                        foreach (string column in index.IncludeColumns)
+                        {
+                            sql.AppendFormat("{0}{1}{2}", !first ? ", " : ""
+                                , column
+                                , Environment.NewLine);
+                            first = false;
+                        }
+                        sql.AppendFormat("){0}", Environment.NewLine);
+                    }
+                }
+            }
+            DbCommand dbCmd = BuildNonQueryDbCommand(sql.ToString(), null);
+            return dbCmd;
+        }
+
+        public override DbCommand BuildCreateTableDbCommand(string sourceSchema
+            , string sourceTable
+            , string targetSchema
+            , string targetTable
+            , List<DbIndexMetaData> indexes = null)
+        {
+            StringBuilder sql = new StringBuilder();
+            sql.AppendFormat("select * into {0}.{1}{2}", targetSchema, targetTable, Environment.NewLine);
+            sql.AppendFormat("from {0}.{1}{2}", sourceSchema, sourceTable, Environment.NewLine);
+            sql.AppendFormat("where 1 = 2{0}", Environment.NewLine);
+
+            if (indexes != null)
+            {
+                sql.AppendFormat("{0}{1}"
+                    , BuildAddIndexesToTableDbCommand(targetSchema, targetTable, indexes).CommandText
+                    , Environment.NewLine); ;
+            }
+            DbCommand dbCmd = BuildNonQueryDbCommand(sql.ToString(), null);
+            return dbCmd;
+        }
+
+        public override DbCommand BuildCreateTableDbCommand(DataTable table)
+        {
+            StringBuilder sql = new StringBuilder();
+            sql.AppendFormat("create table {0}{1}", table.TableName, Environment.NewLine);
+            int i = 0;
+            foreach (DataColumn dc in table.Columns)
+                sql.AppendFormat("{0}{1} {2}{3}", i++ == 0 ? "(" : ", "
+                    , dc.ColumnName
+                    , GetNativeDataTypeFromDotNetDataType(dc.DataType, dc.MaxLength)
+                    , Environment.NewLine);
+            if (table.PrimaryKey != null && table.PrimaryKey.Length > 0)
+            {
+                int j = 0;
+                sql.AppendFormat(", constraint PK_{0} primary key({1}", table.TableName, Environment.NewLine);
+                foreach (DataColumn dc in table.PrimaryKey)
+                    sql.AppendFormat("{0}{1}{2}", j++ == 0 ? "" : ", ", dc.ColumnName, Environment.NewLine);
+                sql.AppendFormat("){0}", Environment.NewLine);
+            }
+            sql.AppendFormat("){0}", Environment.NewLine);
+            DbCommand dbCmd = BuildNonQueryDbCommand(sql.ToString(), null);
+            return dbCmd;
+        }
+
 
         /// <summary>
         /// Returns the back-end compliant sql fragment for getting the row count for the last operation.
@@ -584,6 +714,42 @@ namespace CV.Database
                     , sqlParam.Scale);
             return string.Format("{0}", sqlParam.SqlDbType);
         }
+
+
+        /// <summary>
+        /// Returns the database's native dataType for the given
+        /// dot net dataType.
+        /// </summary>
+        /// <param name="dotNetDataType">Dot Net dataType</param>
+        /// <returns>Database's Native DataType equivalent</returns>
+        public override string GetNativeDataTypeFromDotNetDataType(Type dotNetDataType, int size)
+        {
+            if (dotNetDataType == typeof(System.Int16)
+                || dotNetDataType == typeof(short))
+                return "smallint";
+            if (dotNetDataType == typeof(System.Int32)
+                || dotNetDataType == typeof(int))
+                return "int";
+            if (dotNetDataType == typeof(System.Int64)
+                || dotNetDataType == typeof(long))
+                return "bigint";
+            else if (dotNetDataType == typeof(byte))
+                return "tinyint";
+            else if (dotNetDataType == typeof(Boolean))
+                return "bit";
+            else if (dotNetDataType == typeof(string))
+                return "nvarchar " + (size > 0 ? "( " + size.ToString() + ")" : "");
+            else if (dotNetDataType == typeof(DateTime))
+                return "DateTime";
+            else if (dotNetDataType == typeof(System.Decimal))
+                return "Decimal";
+            else if (dotNetDataType == typeof(float))
+                return "Double";
+            else throw new ArgumentOutOfRangeException(
+                    string.Format("DonNetDataType; {0} was not defined as a NativeDataType."
+                    , dotNetDataType));
+        }
+
 
         /// <summary>
         /// Returns a boolean indicating whether or not the given dbException is for a primary key constraint

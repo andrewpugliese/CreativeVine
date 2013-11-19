@@ -7,8 +7,9 @@ using System.Data;
 using System.Xml;
 
 using CV.Global;
+using CV.Cache;
 
-namespace CV.Database
+namespace CV.Database.Provider
 {
     public enum DatabaseTypeName { SqlServer, Oracle, Db2 };
     public enum DatabaseProviderName { Microsoft, Oracle, IBM };
@@ -123,6 +124,29 @@ namespace CV.Database
         public abstract DbCommand BuildSelectDbCommand(string SelectStatement
                                 , DbParameterCollection DbParams);
 
+        public virtual DbCommand CloneDbCommand(DbCommand dbCmd)
+        {
+            DbCommand dbCmdClone = BuildNoOpDbCommand();
+            dbCmdClone.CommandText = dbCmd.CommandText;
+            dbCmdClone.CommandType = dbCmd.CommandType;
+            dbCmdClone.CommandTimeout = dbCmd.CommandTimeout;
+            CopyParameters(dbCmd.Parameters, dbCmdClone.Parameters);
+            return dbCmdClone;
+        }
+
+        public abstract DbCommand BuildStoredProcedureDbCommand(string storedProcedure);
+
+        public abstract DbCommand BuildCreateTableDbCommand(DataTable datatable);
+
+        public abstract DbCommand BuildAddIndexesToTableDbCommand(string schema, string table
+            , List<DbIndexMetaData> indexes = null);
+
+        public abstract DbCommand BuildCreateTableDbCommand(string sourceSchema, string sourceTable
+            , string targetSchema, string targetTable, List<DbIndexMetaData> indexes = null);
+
+        public abstract DbCommand BuildTruncateTableDbCommand(string schema, string table);
+
+        public abstract DbCommand BuildDropTableDbCommand(string schema, string table);
 
 
         /// <summary>
@@ -280,19 +304,6 @@ namespace CV.Database
                 , ParameterDirection paramDirection
                 , object paramValue);
 
-
-        public virtual DbCommand CloneDbCommand(DbCommand dbCmd)
-        {
-            DbCommand dbCmdClone = BuildNoOpDbCommand();
-            dbCmdClone.CommandText = dbCmd.CommandText;
-            dbCmdClone.CommandType = dbCmd.CommandType;
-            dbCmdClone.CommandTimeout = dbCmd.CommandTimeout;
-            CopyParameters(dbCmd.Parameters, dbCmdClone.Parameters);
-            return dbCmdClone;
-        }
-
-        public abstract DbCommand BuildStoredProcedureDbCommand(string storedProcedure);
-
         /// <summary>
         /// Returns a clone of the given parameter
         /// </summary>
@@ -405,6 +416,15 @@ namespace CV.Database
         {
             return GetGenericDbTypeFromNativeDataType(nativeDataType);
         }
+
+
+        /// <summary>
+        /// Returns the database's native dataType for the given
+        /// dot net dataType.
+        /// </summary>
+        /// <param name="dotNetDataType">Dot Net dataType</param>
+        /// <returns>Database's Native DataType equivalent</returns>
+        public abstract string GetNativeDataTypeFromDotNetDataType(Type dotNetDataType, int size);
 
         /// <summary>
         /// Returns the .Net dataType for the given

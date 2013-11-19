@@ -7,6 +7,7 @@ using System.Data.Common;
 using System.Xml;
 
 using CV.Global;
+using CV.Database.Provider;
 
 namespace CV.Database
 {
@@ -125,7 +126,7 @@ namespace CV.Database
             _noOpDbCommandText = _dbMgr.DbProvider.NoOpDbCommandText;
             _paramAliases = new Dictionary<string, List<DbParameter>>(StringComparer.CurrentCultureIgnoreCase);
             _dbCommand = _dbMgr.BuildNoOpDbCommand();
-            if (_dbMgr.DatabaseTypeName == DatabaseTypeName.Oracle)
+            if (_dbMgr.DatabaseType == DatabaseTypeName.Oracle)
                 _commandBlockReady = false;
         }
 
@@ -146,8 +147,8 @@ namespace CV.Database
                             "There is a missing Commit Transaction statement in one of the nested transactions.")));
 
                 // all oracle & Db2 compound commands must be wrapped in a begin end; block
-                if ((_dbMgr.DatabaseTypeName == DatabaseTypeName.Oracle
-                    || _dbMgr.DatabaseTypeName == DatabaseTypeName.Db2)
+                if ((_dbMgr.DatabaseType == DatabaseTypeName.Oracle
+                    || _dbMgr.DatabaseType == DatabaseTypeName.Db2)
                     && !_commandBlockReady)
                 {
                     if (_commandCount == 0)
@@ -155,7 +156,7 @@ namespace CV.Database
                     else
                     {
                         _commandBlockReady = true;
-                        if (_dbMgr.DatabaseTypeName == DatabaseTypeName.Oracle)
+                        if (_dbMgr.DatabaseType == DatabaseTypeName.Oracle)
                         {
                             _dbCommand.CommandText = _dbMgr.DbProvider.FormatCommandText(_dbCommand.CommandText);
                             return _dbMgr.DbProvider.FormatDbCommand(_dbCommand);
@@ -217,7 +218,7 @@ namespace CV.Database
         public void TransactionBeginBlock()
         {
             UpdateCommandText(_dbMgr.DbProvider.BeginTransaction(_incompleteTransactionBlockCount++));
-            if (_dbMgr.DatabaseTypeName == DatabaseTypeName.Db2)
+            if (_dbMgr.DatabaseType == DatabaseTypeName.Db2)
                 _commandBlockReady = false;
         }
 
@@ -461,7 +462,7 @@ namespace CV.Database
         private void UpdateDbCommandBlock(string dynamicSQL
             , DbParameterCollection dbParameters)
         {
-            if (_dbMgr.DatabaseTypeName == DatabaseTypeName.Oracle
+            if (_dbMgr.DatabaseType == DatabaseTypeName.Oracle
                 && _commandBlockReady)
                 throw new ExceptionMgr(this.ToString()
             , new ArgumentException(
@@ -562,8 +563,8 @@ namespace CV.Database
                 }
             }
 
-            UpdateCommandText(dynamicSQL + (((_dbMgr.DatabaseTypeName == DatabaseTypeName.Oracle
-                    || _dbMgr.DatabaseTypeName == DatabaseTypeName.Db2)
+            UpdateCommandText(dynamicSQL + (((_dbMgr.DatabaseType == DatabaseTypeName.Oracle
+                    || _dbMgr.DatabaseType == DatabaseTypeName.Db2)
                         && !Functions.IsLastCharInText(dynamicSQL, ';')) ? "; " : ""));
             ++_commandCount;    // bump up the command count
         }
