@@ -119,8 +119,6 @@ namespace CV.Database.Provider
                             , DbParameterCollection DbParams);
 
 
-
-
         public abstract DbCommand BuildSelectDbCommand(string SelectStatement
                                 , DbParameterCollection DbParams);
 

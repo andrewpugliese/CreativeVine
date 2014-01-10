@@ -629,12 +629,21 @@ namespace CV.Database
         /// Adds a column for updating or inserting. Creates a parameter (from columnName) using the catalog.
         /// </summary>
         /// <param name="columnName">Unqalified column name</param>
-        public void AddColumn(string columnName)
+        public void AddColumn(string columnName, MergeColumnOptions mergeOptions = MergeColumnOptions.ForInsertOrUpdate)
         {
             DbTableJoin table = MainTable;
-            ColumnsForUpdateOrInsert.Add(new DbQualifiedObject<string>(table.SchemaName
-                    , table.TableName, columnName)
-                    , _dbMgr.DbProvider.BuildParameterName(columnName));
+            if (mergeOptions == MergeColumnOptions.ForInsertOrUpdate)
+                ColumnsForUpdateOrInsert.Add(new DbQualifiedObject<string>(table.SchemaName
+                        , table.TableName, columnName)
+                        , _dbMgr.DbProvider.BuildParameterName(columnName));
+            else if (mergeOptions == MergeColumnOptions.ForInsertOnly)
+                ColumnsForInsert.Add(new DbQualifiedObject<string>(table.SchemaName
+                        , table.TableName, columnName)
+                        , _dbMgr.DbProvider.BuildParameterName(columnName));
+            else if (mergeOptions == MergeColumnOptions.ForUpdateOnly)
+                ColumnsForUpdate.Add(new DbQualifiedObject<string>(table.SchemaName
+                        , table.TableName, columnName)
+                        , _dbMgr.DbProvider.BuildParameterName(columnName));
             if (!table.SelectColumns.ContainsKey(columnName))
                 table.SelectColumns.Add(columnName, columnName);
         }
@@ -1214,7 +1223,7 @@ namespace CV.Database
         /// <param name="joinMgr">DmlMgr object</param>
         /// <param name="dbParams">A given set of dbParameters</param>
         /// <returns>SQL join predicates and update DbParameter collection</returns>
-        private Tuple<string, DbParameterCollection> BuildJoinClause(DmlMgr joinMgr
+        internal Tuple<string, DbParameterCollection> BuildJoinClause(DmlMgr joinMgr
             , DbParameterCollection dbParams)
         {
             StringBuilder joinClause = new StringBuilder();

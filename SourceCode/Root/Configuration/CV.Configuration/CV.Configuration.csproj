@@ -46,6 +46,8 @@
     </Compile>
     <Compile Include="ConfigurationMgr.cs" />
     <Compile Include="Constants.cs" />
+    <Compile Include="DbSetupConfiguration.cs" />
+    <Compile Include="LoggingConfiguration.cs" />
     <Compile Include="ObjectFactoryConfiguration.cs">
       <DependentUpon>ObjectFactoryConfiguration.xsd</DependentUpon>
     </Compile>

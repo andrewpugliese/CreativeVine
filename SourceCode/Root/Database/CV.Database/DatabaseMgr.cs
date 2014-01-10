@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Text;
 using System.Data;
 using System.Data.Common;
@@ -126,6 +127,46 @@ namespace CV.Database
         public T GetValueOrDefault<T>(object dbValue, T defaultVal)
         {
             return GetValueOrDefault_<T>(dbValue, defaultVal);
+        }
+
+
+        /// <summary>
+        /// Returns the back-end compliant variable name (with BindVariablePrefix)
+        /// </summary>
+        /// <param name="variableName">Variable name (with or without prefix)</param>
+        /// <returns>Variable name with prefix)</returns>
+        public virtual string BuildBindVariableName(string variableName)
+        {
+            return _dbProvider.BuildBindVariableName(variableName);
+        }
+
+
+        /// <summary>
+        /// Returns a back-end compliant sql syntax for com
+        /// Returns the back-end compliant parameter name (with ParameterPrefix)
+        /// </summary>
+        /// <param name="paramName">Parameter Name (with or without prefix)</param>
+        /// <returns>Parameter name with prefix</returns>
+        public string BuildParameterName(string paramName)
+        {
+            return _dbProvider.BuildParameterName(paramName);
+        }
+
+        /// <summary>
+        /// Returns the proper parameter name based upon back end db type.
+        /// For commands that Set a Value only where its current value is a specific value
+        /// e.g. Set x = 1 where x = 2
+        /// We have to name 1 of the parameters differently, we have chosen the SetParam (NewValue)
+        /// If IsNewValueParam is true, we will use a special suffix
+        /// NOTE: For SQLServer this is the same as BindVariable, but not so for oracle.
+        /// </summary>
+        /// <param name="variableName">ColumnName or VariableName to become
+        /// a parameter (WITHOUT ANY BACKEND SPECIFIC SYMBOL; e.g. @)</param>
+        /// <param name="isNewValueParam">Indicates whether is part of a Set clause and a Where clause</param>
+        /// <returns>string representation of the back-end specific parameter</returns>
+        public string BuildParameterName(string variableName, bool isNewValueParam)
+        {
+            return _dbProvider.BuildParameterName(variableName, isNewValueParam);
         }
 
         /// <summary>
@@ -273,6 +314,37 @@ namespace CV.Database
             return _dbProvider.BuildNoOpDbCommand();
         }
 
+        public DbCommand CloneDbCommand(DbCommand dbCmd)
+        {
+            return _dbProvider.CloneDbCommand(dbCmd);
+        }
+
+        /// <summary>
+        /// Returns a dbCommand for the execution of the given stored procedure name
+        /// </summary>
+        /// <param name="StoredProcedureName">Name of stored procedure</param>
+        /// <returns></returns>
+        public DbCommand BuildStoredProcedureDbCommand(string StoredProcedureName)
+        {
+            return _dbProvider.BuildStoredProcedureDbCommand(StoredProcedureName);
+        }
+
+        /// <summary>
+        /// Builds a non query (insert/update/delete) DbCommand object that is compliant with the back-end database
+        /// for the given SQL compliant Select Statement and parameter collection.
+        /// </summary>
+        /// <param name="sqlStatement">An Ansi standard compliant SQL select statement with optional bind variable parameters
+        /// to match the </param>
+        /// <param name="dbParams">A DbParameter Collection</param>
+        /// <returns>DAAB DbCommand Object with DbParameters (initialized to the values provided
+        /// or DbNull.  The CommandType is Text.</returns>
+        public DbCommand BuildNonQueryDbCommand(string sqlStatement
+                                    , DbParameterCollection dbParams)
+        {
+            return _dbProvider.BuildNonQueryDbCommand(sqlStatement, dbParams);
+        }
+
+
         /// <summary>
         /// Builds a Select DbCommand object that is compliant with the back-end database
         /// for the given SQL compliant Select Statement and parameter collection.
@@ -309,6 +381,432 @@ namespace CV.Database
         {
             Tuple<string, DbParameterCollection> result = dmlSelect.BuildSelect(dmlSelect, bufferSize, null);
             return BuildSelectDbCommand(result.Item1, result.Item2);
+        }
+
+        public DbCommand BuildInsertDbCommand(DmlMgr dmlInsert)
+        {
+            if (dmlInsert.ColumnsForUpdateOrInsert == null || dmlInsert.ColumnsForUpdateOrInsert.Count == 0)
+                throw new ExceptionMgr(this.ToString(), new ArgumentNullException(
+                            "Cant build insert dbcommand with no columns"));
+
+            // start with the statement
+            StringBuilder sqlInsertVars = new StringBuilder();
+            StringBuilder sqlInsertVals = new StringBuilder();
+            DbParameterCollection dbParams = BuildNoOpDbCommand().Parameters;
+            bool firstColumn = true;
+            foreach (KeyValuePair<DbQualifiedObject<string>, object> columnUpdate in dmlInsert.ColumnsForUpdateOrInsert)
+            {
+                DbQualifiedObject<string> qualifiedColumn = columnUpdate.Key;
+                string columnName = qualifiedColumn.DbObject;
+                string bindVarName = "";
+
+                // dbDateFunctions do not require an insert syntax
+                if (columnUpdate.Value is DateTimeKind)
+                    continue;
+                DbFunctionStructure? fn = null;
+                if (columnUpdate.Value is DbFunctionStructure)
+                {
+                    fn = (DbFunctionStructure)columnUpdate.Value;
+                    if (fn.Value.AutoGenerate) // if it is an identity, or timestamp, or a trigger, then skip
+                        continue;
+                }
+                else if (columnUpdate.Value is string) // parameterName
+                {
+                    bindVarName = BuildBindVariableName((string)columnUpdate.Value);
+
+                    DbColumn column = DbCatalogGetColumn(dmlInsert.MainTable.SchemaName
+                                            , dmlInsert.MainTable.TableName
+                                            , columnName);
+                    // only add parameter if it does not exist in the whereCondition
+                    // because it will be added in the where clause processing
+                    if (!(dmlInsert._whereCondition != null && dmlInsert._whereCondition.Parameters.ContainsKey(
+                            BuildParameterName(columnName))))
+                        CopyParameterToCollection(dbParams
+                            , CreateParameter(columnName
+                                            , column.DataTypeGenericDb
+                                            , column.DataTypeNativeDb
+                                            , column.MaxLength
+                                            , ParameterDirection.Input
+                                            , DBNull.Value));
+                }
+
+                if (firstColumn)
+                {
+                    // if it is not autogenerated then we need to add it to the insert
+                    if (!fn.HasValue || !fn.Value.AutoGenerate)
+                    {
+                        sqlInsertVars.AppendFormat("insert into {0}.{1} ({2}{3}"
+                            , dmlInsert.MainTable.SchemaName
+                            , dmlInsert.MainTable.TableName
+                            , columnName
+                            , Environment.NewLine);
+
+                        // if it is not autogenerated then we need to add the function body insert values
+                        sqlInsertVals.AppendFormat("values ({0}{1}"
+                                , fn.HasValue && !fn.Value.AutoGenerate
+                                    ? fn.Value.FunctionBody : bindVarName
+                                , Environment.NewLine);
+
+                        firstColumn = false;
+                    }
+                }
+                else
+                {
+                    // if it is not autogenerated then we need to add it to the insert
+                    if (!fn.HasValue || !fn.Value.AutoGenerate)
+                    {
+                        sqlInsertVars.AppendFormat(", {0}{1}", columnName, Environment.NewLine);
+                        // if there is a functionbody, we need to add it otherwise add a bind variable
+                        sqlInsertVals.AppendFormat(", {0}{1}"
+                                    , fn.HasValue && !fn.Value.AutoGenerate
+                                        ? fn.Value.FunctionBody : bindVarName
+                                , Environment.NewLine);
+                    }
+                }
+            }
+
+            if (sqlInsertVars.Length > 0)
+            {
+                sqlInsertVals.AppendFormat(") {0}", Environment.NewLine);
+                sqlInsertVars.AppendFormat(") {0}", Environment.NewLine);
+            }
+
+            string sqlInsert = sqlInsertVars.ToString()
+                        + Environment.NewLine + sqlInsertVals.ToString() + Environment.NewLine;
+
+            // return the new dbCommand
+            return BuildNonQueryDbCommand(sqlInsert, dbParams);
+        }
+
+        public DbCommand BuildUpdateDbCommand(DmlMgr dmlUpdate)
+        {
+            if (dmlUpdate.ColumnsForUpdateOrInsert == null || dmlUpdate.ColumnsForUpdateOrInsert.Count == 0)
+                throw new ExceptionMgr(this.ToString(), new ArgumentNullException(
+                            "Cant build update dbcommand with no columns"));
+
+            string updateTable = null;
+
+            DbParameterCollection dbParams = null;
+
+            if (DatabaseType != DatabaseTypeName.SqlServer)
+            {
+                Tuple<string, DbParameterCollection> selectResult = dmlUpdate.BuildSelect(dmlUpdate, null, null);
+
+                updateTable = string.Format("{0}({1}) {2}"
+                        , Environment.NewLine
+                            , selectResult.Item1
+                            , _dbProvider.DefaultTableAlias);
+
+                dbParams = selectResult.Item2;
+            }
+            else
+            {
+                updateTable = dmlUpdate.MainTable.TableAlias;
+                dbParams = BuildNoOpDbCommand().Parameters;
+            }
+
+            string updateSet = string.Format("update {0} set ", updateTable);
+
+
+            StringBuilder updateClause = new StringBuilder();
+            foreach (KeyValuePair<DbQualifiedObject<string>, object> columnUpdate in dmlUpdate.ColumnsForUpdateOrInsert)
+            {
+                DbQualifiedObject<string> qualifiedColumn = columnUpdate.Key;
+                string columnName = qualifiedColumn.DbObject;
+                string columnValue = "";
+
+                if (columnUpdate.Value is DbFunctionStructure)
+                {
+                    columnValue = ((DbFunctionStructure)columnUpdate.Value).FunctionBody;
+                }
+                else if (columnUpdate.Value is DbParameter)
+                {
+                    columnValue = BuildBindVariableName(((DbParameter)columnUpdate.Value).ParameterName);
+                }
+                else if (columnUpdate.Value is DateTimeKind)
+                {
+                    columnValue = GetDbTimeAs((DateTimeKind)columnUpdate.Value, null);
+                }
+                else if (columnUpdate.Value is DbConstValue)
+                {
+                    columnValue = ((DbConstValue)columnUpdate.Value).GetQuotedValue();
+                }
+                else if (columnUpdate.Value is string)
+                {
+                    columnValue = BuildBindVariableName((string)columnUpdate.Value);
+
+                    DbColumn column = DbCatalogGetColumn(qualifiedColumn.SchemaName
+                                                    , qualifiedColumn.TableName
+                                                    , columnName);
+
+                    // only add parameter if it does not exist in the whereCondition
+                    // because it will be added in the where clause processing
+                    if (!(dmlUpdate._whereCondition != null && dmlUpdate._whereCondition.Parameters.ContainsKey(
+                            _dbProvider.BuildParameterName(columnName))))
+                        CopyParameterToCollection(dbParams
+                            , CreateParameter((string)columnUpdate.Value
+                                        , column.DataTypeGenericDb
+                                        , column.DataTypeNativeDb
+                                        , column.MaxLength
+                                        , ParameterDirection.Input
+                                        , DBNull.Value));
+                }
+
+                string tableAlias = null;
+
+                if (DatabaseType != DatabaseTypeName.SqlServer)
+                    tableAlias = _dbProvider.DefaultTableAlias;
+                else
+                    tableAlias = dmlUpdate.GetTable(qualifiedColumn.SchemaName, qualifiedColumn.TableName).TableAlias;
+
+                // add to update clause
+                updateClause.AppendFormat("{0}{1}.{2} = {3}"
+                        , updateClause.Length > 0 ? string.Format("{0}, ", Environment.NewLine) : updateSet
+                        , tableAlias
+                        , columnName
+                        , columnValue);
+            }
+
+            if (DatabaseType == DatabaseTypeName.SqlServer)
+            {
+                updateClause.AppendFormat("{0} from {1} "
+                            , Environment.NewLine
+                            , dmlUpdate.BuildJoinClause(dmlUpdate, null).Item1);
+
+                StringBuilder whereClause = new StringBuilder();
+                if (dmlUpdate._whereCondition != null)
+                    whereClause.AppendFormat("{0}where {1}", Environment.NewLine, dmlUpdate._whereCondition.ToString(this));
+
+                if (whereClause.Length > 0)
+                {
+                    dbParams = dmlUpdate.BuildWhereClauseParams(dmlUpdate._whereCondition.Parameters.Values, dbParams);
+                    updateClause.Append(whereClause);
+                }
+            }
+
+            updateClause.Append(Environment.NewLine);
+
+            return BuildNonQueryDbCommand(updateClause.ToString(), dbParams);
+        }
+
+        public DbCommand BuildChangeDbCommand(DmlMgr dmlChange, params DbQualifiedObject<string>[] lastModColumns)
+        {
+            if (lastModColumns.Length == 0)
+                throw new ExceptionMgr(this.ToString(), new ArgumentNullException(
+                    "BuildChangeDbCommand Error: lastModFieldValues must contain at least one field/value pair"));
+
+            foreach (var lastModCol in lastModColumns)
+            {
+                if (!dmlChange.ColumnsForUpdateOrInsert.ContainsKey(lastModCol))
+                    dmlChange.AddColumn(lastModCol.DbObject, BuildParameterName(lastModCol.DbObject, true));
+                else if (dmlChange.ColumnsForUpdateOrInsert[lastModCol].ToString()
+                        != BuildParameterName(lastModCol.DbObject, true))
+                    dmlChange.ColumnsForUpdateOrInsert[lastModCol] = BuildParameterName(lastModCol.DbObject, true);
+
+            }
+
+            Expression lastModKeyExpression = null;
+            foreach (var lastModCol in lastModColumns)
+            {
+                var lastModColFinal = lastModCol;
+
+                Expression partialEqualExpression = DbPredicate.CreatePredicatePart(t => t.Column(lastModColFinal.SchemaName,
+                        lastModColFinal.TableName, lastModColFinal.DbObject) == t.Parameter(lastModColFinal.TableName,
+                        lastModColFinal.DbObject, BuildParameterName(lastModColFinal.DbObject)));
+
+                Expression partialNullExpression = DbPredicate.CreatePredicatePart(t => t.Parameter(lastModColFinal.TableName,
+                        lastModColFinal.DbObject, BuildParameterName(lastModColFinal.DbObject)) == null && t.Column(lastModColFinal.SchemaName,
+                        lastModColFinal.TableName, lastModColFinal.DbObject) == null);
+
+                Expression partialExpression = Expression.OrElse(partialEqualExpression, partialNullExpression);
+
+                if (lastModKeyExpression == null)
+                {
+                    lastModKeyExpression = partialExpression;
+                }
+                else
+                {
+                    lastModKeyExpression = Expression.AndAlso(lastModKeyExpression, partialExpression);
+                }
+
+            }
+
+            if (dmlChange._whereCondition == null)
+                dmlChange.SetWhereCondition(lastModKeyExpression);
+            else
+                dmlChange.AddToWhereCondition(ExpressionType.AndAlso, lastModKeyExpression);
+
+            return BuildUpdateDbCommand(dmlChange);
+        }
+
+        /// <param name="dmlChange">DmlMgr representing table to be updated. Can have where condition.</param>
+        /// <param name="lastModColumns">NON qualified column names that MUST belong to the MainTable.</param>
+        /// <returns>DbCommand</returns>
+        public DbCommand BuildChangeDbCommand(DmlMgr dmlChange, params string[] lastModColumns)
+        {
+            DbQualifiedObject<string>[] qualifiedColumns = new DbQualifiedObject<string>[lastModColumns.Length];
+            for (int i = 0; i < lastModColumns.Length; i++)
+                qualifiedColumns[i] = new DbQualifiedObject<string>(
+                        dmlChange.MainTable.SchemaName, dmlChange.MainTable.TableName, lastModColumns[i]);
+            return BuildChangeDbCommand(dmlChange, qualifiedColumns);
+        }
+
+        public DbCommand BuildMergeDbCommand(DmlMgr dmlMerge)
+        {
+            if ((dmlMerge.ColumnsForUpdateOrInsert == null || dmlMerge.ColumnsForUpdateOrInsert.Count == 0)
+                && ((dmlMerge.ColumnsForInsert == null || dmlMerge.ColumnsForInsert.Count == 0)
+                    && ((dmlMerge.ColumnsForUpdate == null || dmlMerge.ColumnsForUpdate.Count == 0))))
+                throw new ExceptionMgr(this.ToString(), new ArgumentNullException("Cant build Merge dbcommand with no columns"));
+
+            string mergeTable = null;
+            string tableAlias = null;
+            StringBuilder sqlMerge = new StringBuilder();
+            StringBuilder whereClause = new StringBuilder();
+            DbParameterCollection dbParams = null;
+
+            mergeTable = string.Format("{0}.{1}",
+                    dmlMerge.MainTable.SchemaName,
+                    dmlMerge.MainTable.TableName);
+
+            tableAlias = dmlMerge.GetTable(dmlMerge.MainTable.SchemaName, dmlMerge.MainTable.TableName).TableAlias;
+            dbParams = BuildNoOpDbCommand().Parameters;
+
+            if (dmlMerge._whereCondition != null)
+                whereClause.Append(dmlMerge._whereCondition.ToString(this));
+
+            if (whereClause.Length > 0)
+            {
+                dbParams = dmlMerge.BuildWhereClauseParams(dmlMerge._whereCondition.Parameters.Values, dbParams);
+            }
+
+            int columnNum = 0;
+            bool bColumnPresentInWhereClause;
+            string columnName;
+            string columnValue;
+            StringBuilder updateClause = new StringBuilder();
+            StringBuilder insertColumns = new StringBuilder();
+            StringBuilder insertValues = new StringBuilder();
+            DbQualifiedObject<string> qualifiedColumn;
+            Dictionary<DbQualifiedObject<string>, object> columnsCollection = null;
+
+            // for each of the column types, determine whether they require parameters
+            foreach (MergeColumnOptions columnType in Enum.GetValues(typeof(MergeColumnOptions)))
+            {
+                if (columnType == MergeColumnOptions.None)
+                    continue;
+
+                if (columnType == MergeColumnOptions.ForInsertOnly)
+                    columnsCollection = dmlMerge.ColumnsForInsert;
+                else if (columnType == MergeColumnOptions.ForUpdateOnly)
+                    columnsCollection = dmlMerge.ColumnsForUpdate;
+                else
+                    columnsCollection = dmlMerge.ColumnsForUpdateOrInsert;
+
+                foreach (KeyValuePair<DbQualifiedObject<string>, object> columnMerge in columnsCollection)
+                {
+                    qualifiedColumn = columnMerge.Key;
+                    columnName = qualifiedColumn.DbObject;
+                    columnValue = "";
+
+                    columnNum++;
+                    bColumnPresentInWhereClause = false;
+
+                    if (columnMerge.Value is DbFunctionStructure)
+                    {
+                        columnValue = ((DbFunctionStructure)columnMerge.Value).FunctionBody;
+                    }
+                    else if (columnMerge.Value is DbParameter)
+                    {
+                        columnValue = BuildBindVariableName(((DbParameter)columnMerge.Value).ParameterName);
+                    }
+                    else if (columnMerge.Value is DateTimeKind)
+                    {
+                        columnValue = GetDbTimeAs((DateTimeKind)columnMerge.Value, null);
+                    }
+                    else if (columnMerge.Value is DbConstValue)
+                    {
+                        columnValue = ((DbConstValue)columnMerge.Value).GetQuotedValue();
+                    }
+                    else if (columnMerge.Value is string)
+                    {
+                        columnValue = BuildBindVariableName((string)columnMerge.Value);
+
+                        DbColumn column = DbCatalogGetColumn(qualifiedColumn.SchemaName
+                                                        , qualifiedColumn.TableName
+                                                        , columnName);
+
+                        if (dmlMerge._whereCondition != null && dmlMerge._whereCondition.Parameters.ContainsKey(
+                                BuildParameterName(columnName)))
+                        {
+                            bColumnPresentInWhereClause = true;
+                        }
+                        else
+                        {
+                            CopyParameterToCollection(dbParams
+                                , CreateParameter((string)columnMerge.Value
+                                                , column.DataTypeGenericDb
+                                                , column.DataTypeNativeDb
+                                                , column.MaxLength
+                                                , ParameterDirection.Input
+                                                , DBNull.Value));
+                        }
+                    }
+
+                    if (columnType != MergeColumnOptions.ForUpdateOnly)
+                    {
+                        insertColumns.AppendFormat("{0}{1}"
+                                , columnNum > 1 ? string.Format("{0}, ", Environment.NewLine) : ""
+                                , columnName);
+
+                        insertValues.AppendFormat("{0}{1}"
+                            , columnNum > 1 ? string.Format("{0}, ", Environment.NewLine) : ""
+                            , columnValue);
+                    }
+
+                    if (columnType != MergeColumnOptions.ForInsertOnly)
+                    {
+                        if (!bColumnPresentInWhereClause)
+                        {
+                            updateClause.AppendFormat("{0}{1} = {2}"
+                                    , updateClause.Length > 0 ? string.Format("{0}, ", Environment.NewLine) : "UPDATE SET "
+                                    , columnName, columnValue);
+                        }
+                    }
+                }
+            }
+
+            // build sql body
+            if (DatabaseType == DatabaseTypeName.Oracle)
+            {
+                sqlMerge.AppendFormat("MERGE INTO {0} {1}{2}", mergeTable, tableAlias, Environment.NewLine);
+                sqlMerge.AppendFormat("USING (SELECT 1 DummyCol FROM dual) Source{0}", Environment.NewLine);
+            }
+            else
+            {
+                sqlMerge.AppendFormat("MERGE INTO {0} AS {1}{2}", mergeTable, tableAlias, Environment.NewLine);
+                sqlMerge.AppendFormat("USING (VALUES ( 1 )) AS Source ( DummyCol ){0}", Environment.NewLine);
+            }
+
+            // append where clause
+            sqlMerge.AppendFormat("ON ({0}){1}", whereClause.ToString(), Environment.NewLine);
+
+            // add update portion
+            if (updateClause.Length > 0)
+            {
+                sqlMerge.AppendFormat("WHEN MATCHED THEN{0}{1}{2}", Environment.NewLine, updateClause, Environment.NewLine);
+            }
+
+            // append insert portion
+            if (insertColumns.Length > 0)
+            {
+                sqlMerge.AppendFormat("WHEN NOT MATCHED THEN{0} INSERT ( {1} ){2}VALUES ( {3} )",
+                        Environment.NewLine, insertColumns, Environment.NewLine, insertValues);
+            }
+
+            sqlMerge.AppendFormat("{0};{1}", Environment.NewLine, Environment.NewLine);
+
+            // return the new dbCommand
+            return BuildNonQueryDbCommand(sqlMerge.ToString(), dbParams);
         }
 
         public DbCommand BuildDropTableDbCommand(string schema, string table)
@@ -511,7 +1009,7 @@ namespace CV.Database
         /// Example: "FirstName", "Ernest", "LastName", "Hemingway"</param>
         /// <returns>The return value of the Execute</returns>
         public int ExecuteNonQuery(DbCommand dbCommand
-                                , DbTransaction dbTrans
+                                , DbTransaction dbTrans = null
                                 , params object[] parameterNameValues)
         {
             SetParameterValues(dbCommand, parameterNameValues);
@@ -538,7 +1036,7 @@ namespace CV.Database
         /// Example: "FirstName", "Ernest", "LastName", "Hemingway"</param>
         /// <returns>Collection of dynamic object</returns>
         public IEnumerable<dynamic> ExecuteDynamic(DbCommand dbCommand
-                        , DbTransaction dbTrans
+                        , DbTransaction dbTrans = null
                         , params object[] parameterNameValues)
         {
             return ExecuteReader(dbCommand, dbTrans,
@@ -585,7 +1083,7 @@ namespace CV.Database
         /// Example: "FirstName", "Ernest", "LastName", "Hemingway"</param>
         /// <returns>Collection of Type T</returns>
         public IEnumerable<T> ExecuteCollection<T>(DbCommand dbCommand
-                        , DbTransaction dbTrans
+                        , DbTransaction dbTrans = null
                         , params object[] parameterNameValues) where T : new()
         {
             return ExecuteCollection<T>(dbCommand, dbTrans, null, parameterNameValues);
@@ -605,9 +1103,9 @@ namespace CV.Database
         /// Example: "FirstName", "Ernest", "LastName", "Hemingway"</param>
         /// <returns>Collection of Type T</returns>
         public IEnumerable<T> ExecuteCollection<T>(DbCommand dbCommand
-                        , DbTransaction dbTrans
+                        , DbTransaction dbTrans = null
                         , Func<IDataReader, List<KeyValuePair<int, System.Reflection.PropertyInfo>>,
-                                IEnumerable<T>> dataReaderHandler
+                                IEnumerable<T>> dataReaderHandler = null
                         , params object[] parameterNameValues) where T : new()
         {
             // dbCmdDebug will not have any runtime overhead and is used only when you are debugging
@@ -663,6 +1161,22 @@ namespace CV.Database
 
 
         /// <summary>
+        /// Method used to retrieve the value of an out parameter referred to 
+        /// by the given parameter name.
+        /// NOTE: Numeric Return Value from Oracle Driver (ODP.NET) must be 
+        /// Cast to OracleDecimal, then to .Net Decimal before they can be converted
+        /// by the caller.
+        /// This method provides a consistent interface for testing out params for null
+        /// </summary>
+        /// <param name="dbCommand">DbCommand object</param>
+        /// <param name="paramName">The name of the parameter to test</param>
+        /// <returns>The out param's value as an object</returns>
+        public object GetOutParamValue(DbCommand dbCommand, string paramName)
+        {
+            return _dbProvider.GetOutParamValue(dbCommand, paramName);
+        }
+
+        /// <summary>
         /// Executes the given DbCommand object after setting the given parameter values.
         /// If a DbException is raised and a logger class had been provided,
         /// the method will attempt to Log a debug text version of the dbCommand
@@ -676,8 +1190,8 @@ namespace CV.Database
         /// Example: "FirstName", "Ernest", "LastName", "Hemingway"</param>
         /// <returns>The dataset of the DbCommand execution</returns>
         public DataSet ExecuteDataSet(DbCommand dbCommand
-                        , DbTransaction dbTrans
-                        , List<string> tableNames
+                        , DbTransaction dbTrans = null
+                        , List<string> tableNames = null
                         , params object[] parameterNameValues)
         {
             SetParameterValues(dbCommand, parameterNameValues);
@@ -723,7 +1237,7 @@ namespace CV.Database
         /// Example: "FirstName", "Ernest", "LastName", "Hemingway"</param>
         /// <returns>The return value of the Execute</returns>
         public object ExecuteScalar(DbCommand dbCommand
-                                , DbTransaction dbTrans
+                                , DbTransaction dbTrans = null
                         , params object[] parameterNameValues)
         {
             SetParameterValues(dbCommand, parameterNameValues);
@@ -762,7 +1276,7 @@ namespace CV.Database
         /// Example: "FirstName", "Ernest", "LastName", "Hemingway"</param>
         /// <returns>A data reader object</returns>
         public IDataReader ExecuteReader(DbCommand dbCommand
-                                , DbTransaction dbTrans
+                                , DbTransaction dbTrans = null
                         , params object[] parameterNameValues)
         {
             SetParameterValues(dbCommand, parameterNameValues);
@@ -800,10 +1314,12 @@ namespace CV.Database
         /// Example: "FirstName", "Ernest", "LastName", "Hemingway"</param>
         /// <returns>Returns the result of the DataReaderConsumerFunction.</returns>      
         public T ExecuteReader<T>(DbCommand dbCommand
-            , DbTransaction dbTrans
-            , Func<IDataReader, T> dataReaderHandler
+            , DbTransaction dbTrans = null
+            , Func<IDataReader, T> dataReaderHandler = null
             , params object[] parameterNameValues)
         {
+            if (dataReaderHandler == null)
+                throw new ExceptionMgr(this.ToString(), new ArgumentNullException("dataReaderHandler cannot be null"));
 
             // dbCmdDebug will not have any runtime overhead and is used only when you are debugging
             // and there is an exception executing the dbCommand.
@@ -843,7 +1359,7 @@ namespace CV.Database
         /// Example: "FirstName", "Ernest", "LastName", "Hemingway"</param>
         /// <returns>A xmlReader object</returns>
         public XmlReader ExecuteXmlReader(DbCommand dbCommand
-                                , DbTransaction dbTrans
+                                , DbTransaction dbTrans = null
                         , params object[] parameterNameValues)
         {
             SetParameterValues(dbCommand, parameterNameValues);
@@ -878,7 +1394,7 @@ namespace CV.Database
         /// <returns>Returns the result of the DataReaderConsumerFunction.</returns>      
         public T ExecuteXmlReader<T>(DbCommand dbCommand
             , Func<XmlReader, T> xmlReaderHandler
-            , DbTransaction dbTrans
+            , DbTransaction dbTrans = null
             , params object[] parameterNameValues)
         {
             // dbCmdDebug will not have any runtime overhead and is used only when you are debugging

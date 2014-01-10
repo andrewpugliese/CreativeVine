@@ -1080,7 +1080,7 @@ namespace CV.Database
             if (catalogDataSet.Tables[Database.Constants.Columns].Rows.Count == 0)
                 throw new ExceptionMgr(this.ToString(), new ArgumentNullException(
                               string.Format(Global.Constants.FormatError_InvalidParameterValue
-                                    , Database.Constants.TableName, fullyQualifiedTableName)));
+                                    , "fullyQualifiedTableName", fullyQualifiedTableName, "Table MetaData Was Not Found")));
 
             // otherwise populate the cache
             return CreateTableMetaData(catalogDataSet.Tables[Constants.PrimaryKeys]
@@ -1211,7 +1211,7 @@ namespace CV.Database
             index.ColumnOrder = new SortedDictionary<short, DbIndexColumn>();
             for (int i = 0; i < tableIndexes.Length; i++)
             {
-                string indexName = tableIndexes[i][Constants.Index_Name].ToString().ToLower();
+                string indexName = tableIndexes[i][Constants.IndexName].ToString().ToLower();
                 if (prevIndexName != null && prevIndexName != indexName)
                 {
                     indexes.Add(index.IndexName, index);
@@ -1232,13 +1232,13 @@ namespace CV.Database
                     index.IndexName = indexName;
                 }
                 DbIndexColumn indexColumn = new DbIndexColumn();
-                indexColumn.ColumnName = tableIndexes[i][Constants.Column_Name].ToString();
-                byte ordinal = Convert.ToByte(tableIndexes[i][Constants.OrdinalPosition]);
+                indexColumn.ColumnName = tableIndexes[i][Constants.ColumnName].ToString();
+                byte ordinal = Convert.ToByte(tableIndexes[i][Constants.Ordinal]);
                 if (ordinal == 0)
                     index.IncludeColumns.Add(indexColumn.ColumnName);
                 else
                 {
-                    indexColumn.ColumnFunction = tableIndexes[i][Constants.Column_Default].ToString();
+                    indexColumn.ColumnFunction = tableIndexes[i][Constants.ColumnFunction].ToString();
                     indexColumn.IsDescending = Convert.ToBoolean(tableIndexes[i][Constants.IsDescend]);
                     index.ColumnOrder.Add(ordinal++, indexColumn);
                     index.Columns.Add(indexColumn.ColumnName, indexColumn);

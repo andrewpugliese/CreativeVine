@@ -30,7 +30,7 @@ namespace CV.Database
                 _dbTypeName = DatabaseTypeName.SqlServer;
                 conn.Close();
             }
-       }
+        }
 
 
         SqlCommand CastDbCommand(DbCommand dbCmd)
@@ -355,7 +355,7 @@ namespace CV.Database
                     sqlCmd.Connection = null;
                     conn.Close();
                 }
-            else SqlCommandBuilder.DeriveParameters(sqlCmd);           
+            else SqlCommandBuilder.DeriveParameters(sqlCmd);
         }
 
         /// <summary>
@@ -802,7 +802,7 @@ namespace CV.Database
                 dbCmd.CommandText = nonQueryStatement;
                 if (dbParams != null)
                     foreach (DbParameter dbParam in dbParams)
-                        CopyParameterToCollection(dbParams, dbParam);
+                        CopyParameterToCollection(dbCmd.Parameters, dbParam);
                 return dbCmd;
             }
         }
@@ -828,6 +828,7 @@ namespace CV.Database
         public override DataSet ExecuteDataSet(DbCommand dbCommand
                 , DbTransaction dbTran)
         {
+            DbCommandDebug dbCmdDebug = new DbCommandDebug(dbCommand, GetCommandDebugScript);
             SqlCommand sqlCommand = (SqlCommand)dbCommand;
             using (SqlConnection con = new SqlConnection(_connectionString))
             {
@@ -863,6 +864,7 @@ namespace CV.Database
         public override object ExecuteScalar(DbCommand dbCommand
                 , DbTransaction dbTran)
         {
+            DbCommandDebug dbCmdDebug = new DbCommandDebug(dbCommand, GetCommandDebugScript);
             SqlCommand sqlCommand = (SqlCommand)dbCommand;
             using (SqlConnection con = new SqlConnection(_connectionString))
             {
@@ -893,6 +895,7 @@ namespace CV.Database
         public override int ExecuteNonQuery(DbCommand dbCommand
                 , DbTransaction dbTran)
         {
+            DbCommandDebug dbCmdDebug = new DbCommandDebug(dbCommand, GetCommandDebugScript);
             SqlCommand sqlCommand = (SqlCommand)dbCommand;
             using (SqlConnection con = new SqlConnection(_connectionString))
             {
@@ -923,6 +926,7 @@ namespace CV.Database
         public override IDataReader ExecuteReader(DbCommand dbCommand
                 , DbTransaction dbTran)
         {
+            DbCommandDebug dbCmdDebug = new DbCommandDebug(dbCommand, GetCommandDebugScript);
             SqlCommand sqlCommand = (SqlCommand)dbCommand;
             SqlConnection con = new SqlConnection(_connectionString);
             try
@@ -960,6 +964,7 @@ namespace CV.Database
         public override XmlReader ExecuteXmlReader(DbCommand dbCommand
                 , DbTransaction dbTran)
         {
+            DbCommandDebug dbCmdDebug = new DbCommandDebug(dbCommand, GetCommandDebugScript);
             SqlCommand sqlCommand = (SqlCommand)dbCommand;
             using (SqlConnection con = new SqlConnection(_connectionString))
             {

@@ -445,6 +445,12 @@ namespace CV.Database
     {
         public const string ConnectionKey = "ConnectionKey";
 
+        public const string SCHEMA_CORE = "CV";
+        internal const string TABLE_UNIQUEIDS = "UniqueIds";
+        internal const string USP_UniqueIdsGetNextRange = "cv.usp_UniqueIdsGetNextRange";
+        internal const string RangeAmount = "RangeAmount";
+        internal const string ReturnTable = "ReturnTable";
+
         internal const string All_Constraints = "All_Constraints";
         internal const string All_Cons_Columns = "All_Cons_Columns";
         internal const string All_Ind_Columns = "All_Ind_Columns";
@@ -603,7 +609,7 @@ namespace CV.Database
 
         // The maximum size, in bytes, of the data within the column. The default value is 0 
         // (to be used when you do not want to specify the maximum size of the value).
-        internal const Int32 ParamSizeDefault = 0;     
+        internal const Int32 ParamSizeDefault = 0;
 
     }
 }

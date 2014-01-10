@@ -646,6 +646,7 @@ namespace CV.Logging
         /// <returns>List of messages. Count may be less than or equal to numMessages</returns>
         public List<string> ReadNextMessages(int numMessages, int? startingOffset = null)
         {
+            
             List<string> messages = new List<string>();
 
             string message = ReadNextMessage(startingOffset);

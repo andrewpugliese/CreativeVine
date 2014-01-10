@@ -45,6 +45,7 @@
     </Compile>
     <Compile Include="Constants.cs" />
     <Compile Include="DatabaseProviderBase.cs" />
+    <Compile Include="DbCommandDebug.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

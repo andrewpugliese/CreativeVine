@@ -45,9 +45,9 @@ namespace CV.Logging
     /// Target for tracing to memory mapped log file. 
     /// </summary>FF
     /// <remarks>
-    /// There is only one trace log per machine. If the trace log is NOT being read, not tracing
+    /// There is only one trace log per machine. If the trace log is NOT being read, no tracing
     /// occurs. Reading of the trace log can be done with the 
-    /// <see cref="B1.LoggingManagement.MemoryMappedLogReader">MemoryMappedLogReader</see> class. There is a 
+    /// <see cref="CV.Logging.MemoryMappedLogReader">MemoryMappedLogReader</see> class. There is a 
     /// TraceViewer windows application that provides user interface for viewing the trace log.
     /// </remarks>
     public class TraceLog : ILoggingTarget

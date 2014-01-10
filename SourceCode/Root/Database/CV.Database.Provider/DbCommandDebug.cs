@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Data.Common;
 
-namespace CV.Database
+namespace CV.Database.Provider
 {
     /// <summary>
     /// This class will not have any runtime overhead and is used only when you are debugging.

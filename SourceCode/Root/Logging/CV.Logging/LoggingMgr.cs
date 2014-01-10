@@ -307,7 +307,7 @@ namespace CV.Logging
         public void WriteToLog(string message
             , EventLogEntryType entryType
             , EventPriorities eventPriority
-            , long? eventReference)
+            , long? eventReference = null)
         {
 
             foreach (EventPriorities priority in _loggingTargets.Keys.Where(p => ((int)p & (int)eventPriority) > 0))

@@ -75,7 +75,7 @@ namespace CV.Configuration
         public static string GetNonEmptyValue(string configKeyName)
         {
             string value = GetValue(configKeyName);
-            if (!string.IsNullOrEmpty(value))
+            if (string.IsNullOrEmpty(value))
                 throw new ExceptionMgr(typeof(ConfigurationMgr).ToString()
                 , new ArgumentNullException(
                     string.Format(Constants.FormatError_KeyEmptyValueFound, configKeyName)));

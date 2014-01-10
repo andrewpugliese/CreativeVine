@@ -49,7 +49,6 @@
     <Compile Include="Constants.cs" />
     <Compile Include="FileLog.cs" />
     <Compile Include="ILoggingTarget.cs" />
-    <Compile Include="LoggingConfiguration.cs" />
     <Compile Include="LoggingMgr.cs" />
     <Compile Include="MemoryFileLog.cs" />
     <Compile Include="MemoryMappedLog.cs" />
@@ -71,11 +70,6 @@
       <Project>{00600807-856B-4DB5-9A7A-2D4A005785C9}</Project>
       <Name>CV.Global</Name>
     </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="LoggingConfiguration.xsd">
-      <SubType>Designer</SubType>
-    </None>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

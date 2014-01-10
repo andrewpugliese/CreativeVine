@@ -1,0 +1,28 @@
+﻿<Window x:Class="CV.Utility.DbSetup.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="MainWindow" Height="818" Width="754" 
+        xmlns:cv="clr-namespace:CV.Wpf.Controls;assembly=CV.Wpf.Controls" 
+        Closing="Window_Closing">
+    <Grid>
+        <Grid Height="auto" HorizontalAlignment="Stretch"  Name="gridMain" VerticalAlignment="Stretch"  Width="auto">
+            <TabControl Height="auto" HorizontalAlignment="Stretch" Margin="0,0,0,0" Name="tabControlMain" VerticalAlignment="Stretch" Width="auto">
+                <TabItem Header="DbSetup" Name="tabDbSetup">
+                    <Grid>
+                        <Grid HorizontalAlignment="Stretch" Name="gridDbSetup" VerticalAlignment="Stretch" Loaded="gridDbSetup_Loaded" Height="783">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="50*"  />
+                                <RowDefinition Height="40*" />
+                                <RowDefinition Height="15*" />
+                            </Grid.RowDefinitions>
+                            <DataGrid AutoGenerateColumns="true" HorizontalAlignment="Stretch"  Margin="0,0,0,0" Name="dgConfigSettings" VerticalAlignment="Stretch" AlternatingRowBackground="Azure" MouseDoubleClick="dgConfigSettings_MouseDoubleClick" />
+                            <TextBox Grid.Row="1" HorizontalAlignment="Stretch" Name="tblResults" Text="TextBlock" VerticalAlignment="Stretch" Margin="6,6,6,6" TextWrapping="Wrap" AcceptsReturn="True" AcceptsTab="False" IsReadOnly="True" />
+                            <Border BorderBrush="Silver" BorderThickness="5" Grid.Row="1" HorizontalAlignment="Stretch" Name="bdrResults" VerticalAlignment="Stretch" />
+                            <cv:ProcessControlBar Grid.Row="2" HorizontalAlignment="Center" Margin="0,0,0,0" Name="pcbMain" VerticalAlignment="Center" Loaded="pcbMain_Loaded" />
+                        </Grid>
+                    </Grid>
+                </TabItem>
+            </TabControl>
+        </Grid>
+    </Grid>
+</Window>

@@ -16,7 +16,7 @@ namespace CV.Global
         MilliSecond = 4,
     }
 
-   public static class Constants
+    public static class Constants
     {
         public const string FormatError_FunctionNotImpleted = "Function Not Implemented for Database Type: {0}";
         public const string FormatError_NullOrEmptyParameter = "Null or empty parameter: {0}";

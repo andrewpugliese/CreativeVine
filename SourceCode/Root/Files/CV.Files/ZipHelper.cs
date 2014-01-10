@@ -91,13 +91,11 @@ namespace CV.Files
                 DateTime fileTime = DateTime.MinValue;
                 if (buffer == 0 || buffer == bufferSize)
                 {
-                    //string pZipFile = GetZipFileName(Path.GetFileNameWithoutExtension(ZipFileName.Name), BufferSize.HasValue ? zipOutputFileCount++ : 0);
-                    //string pZipFile = GetZipFileName(ZipFileName.Name, BufferSize.HasValue ? zipOutputFileCount++ : 0);
-                    string pZipFile = GetZipFileName(ZipFileName.Name, zipOutputFileCount);
+                    string pZipFile = GetZipFileName(ZipFileName.Name, BufferSize.HasValue ? ++zipOutputFileCount : 0);
                     string pZipFilePath = string.Format("{0}\\{1}", ZipFileName.DirectoryName, pZipFile);
                     if (File.Exists(pZipFilePath) && !createdFiles.Contains(pZipFilePath))
                         File.Delete(pZipFilePath);
-                    if (zfile == null && !createdFiles.Contains(pZipFilePath))
+                    if (zfile == null || !createdFiles.Contains(pZipFilePath))
                     {
                         zfile = ZipFile.Create(pZipFilePath);
                         createdFiles.Add(pZipFilePath);
