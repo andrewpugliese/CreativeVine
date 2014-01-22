@@ -31,13 +31,13 @@ namespace CV.Global
         public static string ExceptionToString(Exception exc)
         {
             return string.Format("Msg: {0}{3}; Src: {1}{3}; Trc: {2}{3}"
-                , exc.Source
                 , exc.Message
+                , exc.Source
                 , exc.StackTrace
                 , Environment.NewLine)
-                + exc.InnerException != null ? "    Inner:" 
+                + (exc.InnerException != null ? "    Inner:" 
                     + ExceptionToString(exc.InnerException)
-                : string.Empty;
+                : string.Empty);
         }
     }
 }

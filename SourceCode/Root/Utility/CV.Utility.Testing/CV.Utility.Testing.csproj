@@ -126,6 +126,10 @@
       <Project>{FD1B5EC9-9B1E-4116-9FC0-67A43DC0DEAE}</Project>
       <Name>CV.Logging</Name>
     </ProjectReference>
+    <ProjectReference Include="..\..\Web\CV.Rest.Sequences\CV.Rest.Sequences.csproj">
+      <Project>{7C7F6910-CF53-4075-93CE-5FED5D897A63}</Project>
+      <Name>CV.Rest.Sequences</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

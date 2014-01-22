@@ -20,6 +20,20 @@
                     </Grid>
                 </Grid>
                 </TabItem>
-            </TabControl>
+            <TabItem Header="Test Sequence Svc" Name="tabTestSeqSvc">
+                <Grid Height="auto">
+                    <Grid Height="auto" HorizontalAlignment="Stretch" Margin="0,0,0,0" Name="grid1" VerticalAlignment="Stretch">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="50*" />
+                            <RowDefinition Height="25*" />
+                            <RowDefinition Height="25*" />
+                        </Grid.RowDefinitions>
+                        <cv:PagingTableControl Grid.Row="0" MouseDoubleClick="ptTestData_MouseDoubleClick" Name="pagingTableControl1" VerticalAlignment="Stretch" />
+                        <Button Click="btnConnect_Click" Content="Connect" Grid.Row="2" Height="23" HorizontalAlignment="Left" Margin="0,0,0,0" Name="button1" VerticalAlignment="Bottom" Width="75" />
+                        <Button Click="btnInsert_Click" Content="StartInsert" Grid.Row="2" Height="23" HorizontalAlignment="Left" Margin="94,0,0,1" Name="button2" VerticalAlignment="Bottom" Width="75" />
+                    </Grid>
+                </Grid>
+            </TabItem>
+        </TabControl>
     </Grid>
 </Window>

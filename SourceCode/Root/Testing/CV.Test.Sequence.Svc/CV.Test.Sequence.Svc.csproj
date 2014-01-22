@@ -2,18 +2,21 @@
 <Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <Platform Condition=" '$(Platform)' == '' ">x86</Platform>
     <ProductVersion>8.0.30703</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>{1062545F-8F71-424A-8608-1C5C06CE1912}</ProjectGuid>
-    <OutputType>Library</OutputType>
+    <ProjectGuid>{9E2360EC-4BB0-4DFE-9B35-EAC0353A6968}</ProjectGuid>
+    <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>CV.Files</RootNamespace>
-    <AssemblyName>CV.Files</AssemblyName>
+    <RootNamespace>CV.Test.Sequence.Svc</RootNamespace>
+    <AssemblyName>CV.Test.Sequence.Svc</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
+    <TargetFrameworkProfile>
+    </TargetFrameworkProfile>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' ">
+    <PlatformTarget>x86</PlatformTarget>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
@@ -22,7 +25,8 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x86' ">
+    <PlatformTarget>x86</PlatformTarget>
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
@@ -31,9 +35,10 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="ICSharpCode.SharpZipLib" />
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <Reference Include="System.ServiceModel" />
+    <Reference Include="System.ServiceModel.Web" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
@@ -41,14 +46,31 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\..\Global\CV.Global\Properties\SharedAssemblyCopyright.cs">
-      <Link>Properties\SharedAssemblyCopyright.cs</Link>
-    </Compile>
-    <Compile Include="DirectoryHelper.cs" />
-    <Compile Include="FileHelper.cs" />
-    <Compile Include="FileRolloverMgr.cs" />
+    <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="ZipHelper.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Configuration\CV.Configuration\CV.Configuration.csproj">
+      <Project>{25910351-876C-46D1-9792-A2416F2501CE}</Project>
+      <Name>CV.Configuration</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Database\CV.Database\CV.Database.csproj">
+      <Project>{E4DBB8A0-9B56-479D-A3EA-548F89516D52}</Project>
+      <Name>CV.Database</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Logging\CV.Logging\CV.Logging.csproj">
+      <Project>{FD1B5EC9-9B1E-4116-9FC0-67A43DC0DEAE}</Project>
+      <Name>CV.Logging</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Web\CV.Rest.Sequences\CV.Rest.Sequences.csproj">
+      <Project>{7C7F6910-CF53-4075-93CE-5FED5D897A63}</Project>
+      <Name>CV.Rest.Sequences</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="app.config">
+      <SubType>Designer</SubType>
+    </None>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

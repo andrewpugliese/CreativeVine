@@ -450,6 +450,8 @@ namespace CV.Database
         internal const string USP_UniqueIdsGetNextRange = "cv.usp_UniqueIdsGetNextRange";
         internal const string RangeAmount = "RangeAmount";
         internal const string ReturnTable = "ReturnTable";
+        internal const string SetupUniqueIdKey = "SetupUniqueIdKey";
+        internal const string ResetUniqueIdValue = "ResetUniqueIdValue";
 
         internal const string All_Constraints = "All_Constraints";
         internal const string All_Cons_Columns = "All_Cons_Columns";

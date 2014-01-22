@@ -305,8 +305,8 @@ namespace CV.Logging
         /// <param name="enumPriority">The priority of the item to log. A critical item will
         /// throw an exception if it is not possbile to write to the primary and backup logs</param>
         public void WriteToLog(string message
-            , EventLogEntryType entryType
-            , EventPriorities eventPriority
+            , EventLogEntryType entryType = EventLogEntryType.Information
+            , EventPriorities eventPriority = EventPriorities.Normal
             , long? eventReference = null)
         {
 

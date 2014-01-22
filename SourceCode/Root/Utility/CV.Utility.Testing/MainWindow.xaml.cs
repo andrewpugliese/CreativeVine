@@ -83,15 +83,18 @@ namespace CV.Utility.Testing
         */
         private void btnConnect_Click(object sender, RoutedEventArgs e)
         {
-            DatabaseMgr dbMgr = new DatabaseMgr(ConfigurationMgr.GetNonEmptyValue("ConnectionKey"));
+            TestSequence();
         }
 
-        private void btnSequence_Click(object sender, RoutedEventArgs e)
+        void TestSequence()
         {
             DatabaseMgr dbMgr = new DatabaseMgr(ConfigurationMgr.GetNonEmptyValue("ConnectionKey"));
+
+
             using (SequenceMgr seqMgr = new SequenceMgr(dbMgr))
             {
-                seqMgr.SetupKey("MyTestKey", 0, 5, 1);
+                seqMgr.SetupKey("MyTestKey", 5, 1);
+                seqMgr.SetupKey("MyTestKey", 5, 1);
                 long sequence = seqMgr.GetNextSequence("MyTestKey");
                 sequence = seqMgr.GetNextSequence("MyTestKey");
                 sequence = seqMgr.GetNextSequence("MyTestKey");
@@ -103,6 +106,31 @@ namespace CV.Utility.Testing
                 sequence = seqMgr.GetNextSequence("MyTestKey");
                 sequence = seqMgr.GetNextSequence("MyTestKey");
                 sequence = seqMgr.GetNextSequence("MyTestKey");
+            }
+            using (SequenceMgr seqMgr = new SequenceMgr(dbMgr, 10))
+            {
+                seqMgr.SetupKey("MyTestKey2", 50, 1);
+                seqMgr.SetupKey("MyTestKey2", 50, 1);
+                long sequence = seqMgr.GetNextSequence("MyTestKey2");
+                sequence = seqMgr.GetNextSequence("MyTestKey2");
+                sequence = seqMgr.GetNextSequence("MyTestKey2");
+                sequence = seqMgr.GetNextSequence("MyTestKey2");
+                sequence = seqMgr.GetNextSequence("MyTestKey2");
+                sequence = seqMgr.GetNextSequence("MyTestKey2");
+                sequence = seqMgr.GetNextSequence("MyTestKey2");
+                sequence = seqMgr.GetNextSequence("MyTestKey2");
+                sequence = seqMgr.GetNextSequence("MyTestKey2");
+                sequence = seqMgr.GetNextSequence("MyTestKey2");
+                sequence = seqMgr.GetNextSequence("MyTestKey2");
+                sequence = seqMgr.GetNextSequence("MyTestKey2");
+                sequence = seqMgr.GetNextSequence("MyTestKey2");
+                sequence = seqMgr.GetNextSequence("MyTestKey2");
+                sequence = seqMgr.GetNextSequence("MyTestKey2");
+                sequence = seqMgr.GetNextSequence("MyTestKey2");
+                sequence = seqMgr.GetNextSequence("MyTestKey2");
+                sequence = seqMgr.GetNextSequence("MyTestKey2");
+                sequence = seqMgr.GetNextSequence("MyTestKey2");
+                sequence = seqMgr.GetNextSequence("MyTestKey2");
             }
         }
 
