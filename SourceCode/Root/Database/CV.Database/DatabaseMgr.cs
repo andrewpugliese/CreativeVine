@@ -809,6 +809,52 @@ namespace CV.Database
             return BuildNonQueryDbCommand(sqlMerge.ToString(), dbParams);
         }
 
+        public DbCommand BuildDeleteDbCommand(DmlMgr dmlDelete)
+        {
+            StringBuilder deleteSQL = new StringBuilder();
+
+            DbParameterCollection dbParams = null;
+
+            if (DatabaseType == DatabaseTypeName.SqlServer)
+            {
+                deleteSQL.AppendFormat("delete {0} from {1}"
+                        , dmlDelete.MainTable.TableAlias
+                        , dmlDelete.BuildJoinClause(dmlDelete, null).Item1);
+
+                StringBuilder whereClause = new StringBuilder();
+                if (dmlDelete._whereCondition != null)
+                    whereClause.AppendFormat("{0}where {1}", Environment.NewLine,
+                            dmlDelete._whereCondition.ToString(this));
+
+                // now add the parameters
+                // start with the statement
+                if (whereClause.Length > 0)
+                    deleteSQL.AppendFormat("{0}{1}", Environment.NewLine
+                                        , whereClause.ToString());
+
+                if (whereClause.Length > 0)
+                    dbParams = dmlDelete.BuildWhereClauseParams(dmlDelete._whereCondition.Parameters.Values);
+
+            }
+            else
+            {
+                dmlDelete.MainTable.SelectColumns.Clear();
+                dmlDelete.MainTable.SelectColumns.Add("*", "*");
+
+                Tuple<string, DbParameterCollection> selectResult = dmlDelete.BuildSelect(dmlDelete, null, null);
+
+                deleteSQL.AppendFormat("delete from ({0})"
+                        , selectResult.Item1
+                        , dmlDelete.BuildJoinClause(dmlDelete, null).Item1);
+
+                dbParams = selectResult.Item2;
+            }
+
+            deleteSQL.Append(Environment.NewLine);
+
+            return BuildNonQueryDbCommand(deleteSQL.ToString(), dbParams);
+        }
+
         public DbCommand BuildDropTableDbCommand(string schema, string table)
         {
             return _dbProvider.BuildDropTableDbCommand(schema, table);

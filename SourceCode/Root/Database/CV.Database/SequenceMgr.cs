@@ -28,7 +28,6 @@ namespace CV.Database.Sequence
         CacheMgr<string, IdMetaData> _idCache = new CacheMgr<string, IdMetaData>(StringComparer.CurrentCultureIgnoreCase);
         CacheMgr<string, object> _idCacheLocks = new CacheMgr<string, object>(StringComparer.CurrentCultureIgnoreCase);
         DatabaseMgr _dbMgr;
-        IdMetaData _metaData = new IdMetaData();
         uint _idCacheSize = 1;
 
         public SequenceMgr(DatabaseMgr dbMgr

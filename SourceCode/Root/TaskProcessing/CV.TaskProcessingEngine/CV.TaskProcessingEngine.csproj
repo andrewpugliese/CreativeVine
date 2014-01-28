@@ -3,18 +3,15 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProductVersion>8.0.50727</ProductVersion>
+    <ProductVersion>8.0.30703</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>{7C7F6910-CF53-4075-93CE-5FED5D897A63}</ProjectGuid>
+    <ProjectGuid>{143FC60B-7E6C-4FB3-A90E-33E8C885FC5D}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>CV.Rest.Sequences</RootNamespace>
-    <AssemblyName>CV.Rest.Sequences</AssemblyName>
-    <ProjectTypeGuids>{3D9AD99F-2412-4246-B90B-4EAA41C64699};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
-    <StartArguments>/client:"WcfTestClient.exe"</StartArguments>
+    <RootNamespace>B1.TaskProcessingEngine</RootNamespace>
+    <AssemblyName>B1.TaskProcessingEngine</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
-    <TargetFrameworkProfile>
-    </TargetFrameworkProfile>
+    <FileAlignment>512</FileAlignment>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -34,29 +31,41 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
     <Reference Include="System" />
     <Reference Include="System.Core" />
-    <Reference Include="System.Data" />
+    <Reference Include="System.Drawing" />
     <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.ServiceModel" />
-    <Reference Include="System.ServiceModel.Web" />
-    <Reference Include="System.Xml" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xaml" />
     <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Xml" />
+    <Reference Include="WindowsBase" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ISequence.cs" />
+    <Compile Include="DequeuedTask.cs" />
+    <Compile Include="IHostTPE.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Properties\SharedAssemblyCopyright.cs" />
-    <Compile Include="SequenceItem.cs" />
-    <Compile Include="SequenceDispatcher.cs" />
+    <Compile Include="TaskProcessingEngine.cs" />
+    <Compile Include="TasksInProcess.cs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Template.App.config">
-      <SubType>Designer</SubType>
-    </None>
+    <WCFMetadata Include="Service References\" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="app.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Cache\CV.Cache\CV.Cache.csproj">
+      <Project>{83C1EDC3-D1B9-4114-9B9C-5307AA80D4CC}</Project>
+      <Name>CV.Cache</Name>
+    </ProjectReference>
     <ProjectReference Include="..\..\Configuration\CV.Configuration\CV.Configuration.csproj">
       <Project>{25910351-876C-46D1-9792-A2416F2501CE}</Project>
       <Name>CV.Configuration</Name>
@@ -73,17 +82,12 @@
       <Project>{FD1B5EC9-9B1E-4116-9FC0-67A43DC0DEAE}</Project>
       <Name>CV.Logging</Name>
     </ProjectReference>
+    <ProjectReference Include="..\CV.TaskProcessing\CV.TaskProcessing.csproj">
+      <Project>{77CD10F5-170A-4E52-80F7-1E8891CD66DF}</Project>
+      <Name>CV.TaskProcessing</Name>
+    </ProjectReference>
   </ItemGroup>
-  <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
-  <ProjectExtensions>
-    <VisualStudio>
-      <FlavorProperties GUID="{3D9AD99F-2412-4246-B90B-4EAA41C64699}">
-        <WcfProjectProperties>
-          <AutoStart>True</AutoStart>
-        </WcfProjectProperties>
-      </FlavorProperties>
-    </VisualStudio>
-  </ProjectExtensions>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">

@@ -2,6 +2,9 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Runtime.Serialization;
+using System.Xml;
+using System.IO;
 
 namespace CV.Global
 {
@@ -47,6 +50,63 @@ namespace CV.Global
                 if (char.IsLetterOrDigit(text[i]))
                     return false;
             return true;
+        }
+
+        /// <summary>
+        /// Returns a serialized string version of the given type T
+        /// </summary>
+        /// <typeparam name="T">A valid .Net data type</typeparam>
+        /// <param name="obj">An object of type T</param>
+        /// <returns>A serialized string version of type T</returns>
+        public static string Serialize<T>(T obj)
+        {
+            return Serialize<T>(obj, null);
+        }
+
+        /// <summary>
+        /// Returns a serialized string version of the given type T
+        /// </summary>
+        /// <typeparam name="T">A valid .Net data type</typeparam>
+        /// <param name="obj">An object of type T</param>
+        /// <param name="knownTypes">An IEnumerable collection of non default data types which may be present in obj T </param>
+        /// <returns>A serialized string version of type T</returns>
+        public static string Serialize<T>(T obj, IEnumerable<Type> knownTypes)
+        {
+            var serializer = new DataContractSerializer(obj.GetType(), knownTypes);
+            using (var writer = new StringWriter())
+            using (var stm = new XmlTextWriter(writer))
+            {
+                serializer.WriteObject(stm, obj);
+                return writer.ToString();
+            }
+        }
+
+        /// <summary>
+        /// Returns the object of type T which is in a serialized form in the given parameter.
+        ///  </summary>
+        /// <typeparam name="T">A valid .Net data type</typeparam>
+        /// <param name="serialized">An object of type T that was perviously serialized</param>
+        /// <returns>A fully deserialized object of type T</returns>
+        public static T Deserialize<T>(string serialized)
+        {
+            return Deserialize<T>(serialized, null);
+        }
+
+        /// <summary>
+        /// Returns the object of type T which is in a serialized form in the given parameter.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="serialized"></param>
+        /// <param name="knownTypes"></param>
+        /// <returns></returns>
+        public static T Deserialize<T>(string serialized, IEnumerable<Type> knownTypes)
+        {
+            var serializer = new DataContractSerializer(typeof(T), knownTypes);
+            using (var reader = new StringReader(serialized))
+            using (var stm = new XmlTextReader(reader))
+            {
+                return (T)serializer.ReadObject(stm);
+            }
         }
 
     }
